@@ -34,9 +34,6 @@ Every decomposed ticket must contain these exact sections:
     "openQuestions": [
       "String - Specific questions that need answers to proceed"
     ],
-    "engineQuestions": [
-      "String - Questions the AI engineer wants to ask the human directly"
-    ],
     "validationMethod": [
       "String - How to verify the ticket is complete and correct"
     ],
@@ -70,28 +67,19 @@ Every decomposed ticket must contain these exact sections:
 - Include platform, technology, scale, and user requirements
 
 ### 3. Open Questions
-- Ask specific, actionable questions that need answers from stakeholders to proceed
-- Focus on requirements gathering and specification clarification
+- Ask specific, actionable questions that lead to concrete answers
 - Avoid yes/no questions when possible; prefer "what/how/which" questions
 - Cover functional requirements, non-functional requirements, and constraints
 - Include timeline, budget, and resource questions when relevant
 - Minimum 5-8 questions per ticket
 
-### 4. Engineer Questions
-- Questions the AI engineer wants to ask the human directly
-- Can include clarifications about previously mentioned interests or preferences
-- May cover technical approaches the engineer is curious about exploring
-- Can ask about human's comfort level with certain technologies or methodologies
-- Include questions about the human's direct involvement or collaboration preferences
-- Engineer-driven inquiries about scope expansion or alternative approaches
-
-### 5. Validation Method
+### 4. Validation Method
 - Define concrete, measurable ways to verify ticket completion
 - Include both functional and non-functional testing approaches
 - Specify what constitutes "done" for each major component
 - Consider user acceptance criteria, performance benchmarks, and code quality standards
 
-### 6. Validation Results
+### 5. Validation Results
 - Use appropriate MIME types for expected deliverables
 - Set placeholder URLs for pending implementations
 - Update with actual results as validation occurs
