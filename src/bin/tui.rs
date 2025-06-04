@@ -29,7 +29,8 @@ pub enum AppState {
     DeleteProject,   // selecting project to delete
     ProjectMenu(String), // project name
     TicketList(String),  // project name
-    TicketDetail(String, TicketId), // project name, ticket id
+    TicketDetail(String, TicketId), // project name, ticket id - menu view
+    TicketDetailsView(String, TicketId), // project name, ticket id - detailed content view
     CreateProject,
     CreateTicket(String), // project name
     QuickRefine(String, TicketId), // project name, ticket id
@@ -48,6 +49,7 @@ pub struct InputState {
 
 pub struct App {
     pub state: AppState,
+    pub previous_state: Option<AppState>, // Track previous state for context preservation
     pub selected_index: usize,
     pub scroll_offset: usize,
     pub project_manager: ProjectManager,
@@ -84,6 +86,7 @@ impl App {
 
         Ok(App {
             state: AppState::MainMenu,
+            previous_state: None,
             selected_index: 0,
             scroll_offset: 0,
             project_manager,
@@ -94,11 +97,55 @@ impl App {
         })
     }
 
+    // Helper method to transition states while preserving context
+    fn transition_to_state(&mut self, new_state: AppState) {
+        // Only preserve context for meaningful states (not Loading/Error)
+        if !matches!(self.state, AppState::Loading(_) | AppState::Error(_)) {
+            self.previous_state = Some(self.state.clone());
+        }
+        self.state = new_state;
+    }
+    
+    // Helper method to return to previous context or fallback
+    fn return_to_context(&mut self) {
+        if let Some(previous) = self.previous_state.take() {
+            match &previous {
+                AppState::TicketDetail(project_name, ticket_id) => {
+                    let project_name = project_name.clone();
+                    let ticket_id = ticket_id.clone();
+                    self.show_ticket_detail(project_name, ticket_id).ok();
+                },
+                AppState::TicketDetailsView(project_name, ticket_id) => {
+                    let project_name = project_name.clone();
+                    let ticket_id = ticket_id.clone();
+                    self.show_ticket_details_view(project_name, ticket_id).ok();
+                },
+                AppState::TicketList(project_name) => {
+                    let project_name = project_name.clone();
+                    self.show_ticket_list(project_name).ok();
+                },
+                AppState::ProjectMenu(project_name) => {
+                    let project_name = project_name.clone();
+                    self.state = AppState::ProjectMenu(project_name);
+                    self.update_project_menu_items();
+                },
+                _ => {
+                    self.state = previous;
+                }
+            }
+        } else {
+            self.go_back();
+        }
+    }
+
     pub fn handle_key(&mut self, key: KeyCode) -> Result<(), Box<dyn std::error::Error>> {
         match key {
             KeyCode::Char('q') | KeyCode::Esc => {
                 if matches!(self.state, AppState::MainMenu) {
                     self.should_quit = true;
+                } else if matches!(self.state, AppState::Loading(_) | AppState::Error(_)) {
+                    // Return to previous context for Loading/Error states
+                    self.return_to_context();
                 } else {
                     self.go_back();
                 }
@@ -164,6 +211,11 @@ impl App {
                 let ticket_id = ticket_id.clone();
                 self.handle_ticket_detail_selection(project_name, ticket_id)?;
             },
+            AppState::TicketDetailsView(project_name, ticket_id) => {
+                let project_name = project_name.clone();
+                let ticket_id = ticket_id.clone();
+                self.handle_ticket_details_view_selection(project_name, ticket_id)?;
+            },
             AppState::QuickRefine(project_name, ticket_id) => {
                 let project_name = project_name.clone();
                 let ticket_id = ticket_id.clone();
@@ -223,7 +275,7 @@ impl App {
                     self.state = AppState::Loading(format!("Deleted project: {}", project_name));
                 },
                 Err(e) => {
-                    self.state = AppState::Error(format!("Failed to delete project: {}", e));
+                    self.transition_to_state(AppState::Error(format!("Failed to delete project: {}", e)));
                 }
             }
         } else if self.selected_index == projects.len() {
@@ -251,24 +303,24 @@ impl App {
     fn handle_ticket_detail_selection(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
         match self.selected_index {
             0 => {
-                // View ticket details - for now just show a message
-                self.state = AppState::Loading("Viewing ticket details...".to_string());
+                // View ticket details - show the actual ticket details
+                self.show_ticket_details_view(project_name, ticket_id)?;
             },
             1 => {
-                // View refinement requests - for now just show a message
-                self.state = AppState::Loading("Viewing refinement requests...".to_string());
+                // View refinement requests - show loading then return to ticket detail
+                self.transition_to_state(AppState::Loading("Viewing refinement requests...".to_string()));
             },
             2 => {
-                // Quick refine - show all terms
+                // Quick refine - show all terms (this changes context)
                 self.show_quick_refine(project_name, ticket_id)?;
             },
             3 => {
-                // View dependencies
-                self.state = AppState::Loading("Viewing dependencies...".to_string());
+                // View dependencies - show loading then return to ticket detail
+                self.transition_to_state(AppState::Loading("Viewing dependencies...".to_string()));
             },
             4 => {
-                // View dependents
-                self.state = AppState::Loading("Viewing dependents...".to_string());
+                // View dependents - show loading then return to ticket detail
+                self.transition_to_state(AppState::Loading("Viewing dependents...".to_string()));
             },
             5 => {
                 // Back
@@ -279,11 +331,42 @@ impl App {
         Ok(())
     }
 
+    fn show_ticket_details_view(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(project) = &self.current_project {
+            if let Some(_node) = project.graph.get_ticket(&ticket_id) {
+                // Show basic navigation options for the details view
+                self.items = vec![
+                    "← Back to ticket menu".to_string(),
+                ];
+                
+                self.state = AppState::TicketDetailsView(project_name, ticket_id);
+                self.selected_index = 0;
+                self.scroll_offset = 0;
+            } else {
+                self.transition_to_state(AppState::Error("Ticket not found.".to_string()));
+            }
+        } else {
+            self.transition_to_state(AppState::Error("No project loaded.".to_string()));
+        }
+        Ok(())
+    }
+
+    fn handle_ticket_details_view_selection(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
+        match self.selected_index {
+            0 => {
+                // Back to ticket menu
+                self.show_ticket_detail(project_name, ticket_id)?;
+            },
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn show_quick_refine(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(project) = &self.current_project {
             if let Some(node) = project.graph.get_ticket(&ticket_id) {
                 if node.ticket.decomposed_ticket.terms_needing_refinement.is_empty() {
-                    self.state = AppState::Error("No terms need refinement in this ticket.".to_string());
+                    self.transition_to_state(AppState::Error("No terms need refinement in this ticket.".to_string()));
                     return Ok(());
                 }
 
@@ -327,9 +410,17 @@ impl App {
             if let Some(node) = project.graph.get_ticket(&ticket_id) {
                 if self.selected_index < node.ticket.decomposed_ticket.terms_needing_refinement.len() {
                     let refinement_request = &node.ticket.decomposed_ticket.terms_needing_refinement[self.selected_index];
-                    self.state = AppState::Loading(format!("Creating refinement ticket for '{}'...", refinement_request.term));
-                    // In a real implementation, this would trigger the async refinement process
-                    // For now, we'll just go back to the ticket detail
+                    self.transition_to_state(AppState::Loading(format!("Creating refinement ticket for '{}'...", refinement_request.term)));
+                    // TODO: In a real implementation, this would:
+                    // 1. Trigger the async refinement process
+                    // 2. Create a new ticket for the refinement
+                    // 3. Navigate to that new ticket's detail view (becomes new context)
+                    // For now, we'll simulate a creation that goes to a new ticket view
+                    // In practice, you'd call something like:
+                    // let new_ticket_id = self.create_refinement_ticket(refinement_request).await?;
+                    // self.show_ticket_detail(project_name, new_ticket_id)?;
+                } else if self.selected_index == node.ticket.decomposed_ticket.terms_needing_refinement.len() {
+                    // "← Back" selected
                     self.show_ticket_detail(project_name, ticket_id)?;
                 }
             }
@@ -365,6 +456,11 @@ impl App {
 
     fn go_back(&mut self) {
         match &self.state {
+            AppState::Loading(_) | AppState::Error(_) => {
+                // These should use return_to_context instead
+                self.return_to_context();
+                return;
+            },
             AppState::ListProjects | AppState::OpenProject | AppState::DeleteProject => {
                 self.state = AppState::MainMenu;
                 self.update_main_menu_items();
@@ -381,6 +477,11 @@ impl App {
             AppState::TicketDetail(project_name, _) => {
                 let project_name = project_name.clone();
                 self.show_ticket_list(project_name).ok();
+            },
+            AppState::TicketDetailsView(project_name, ticket_id) => {
+                let project_name = project_name.clone();
+                let ticket_id = ticket_id.clone();
+                self.show_ticket_detail(project_name, ticket_id).ok();
             },
             AppState::QuickRefine(project_name, ticket_id) => {
                 let project_name = project_name.clone();
@@ -399,7 +500,7 @@ impl App {
     fn list_projects(&mut self) {
         let projects = self.project_manager.list_projects();
         if projects.is_empty() {
-            self.state = AppState::Error("No projects found.".to_string());
+            self.transition_to_state(AppState::Error("No projects found.".to_string()));
         } else {
             self.items = projects.iter().map(|p| p.to_string()).collect();
             self.items.push("← Back".to_string());
@@ -421,7 +522,7 @@ impl App {
     fn show_open_project_menu(&mut self) {
         let projects = self.project_manager.list_projects();
         if projects.is_empty() {
-            self.state = AppState::Error("No projects found.".to_string());
+            self.transition_to_state(AppState::Error("No projects found.".to_string()));
         } else {
             self.items = projects.iter().map(|p| p.to_string()).collect();
             self.items.push("← Back".to_string());
@@ -434,7 +535,7 @@ impl App {
     fn show_delete_project_menu(&mut self) {
         let projects = self.project_manager.list_projects();
         if projects.is_empty() {
-            self.state = AppState::Error("No projects found.".to_string());
+            self.transition_to_state(AppState::Error("No projects found.".to_string()));
         } else {
             self.items = projects.iter().map(|p| format!("Delete: {}", p)).collect();
             self.items.push("← Back".to_string());
@@ -531,8 +632,15 @@ impl App {
     }
 
     fn create_ticket_with_description(&mut self, project_name: String, _description: String) -> Result<(), Box<dyn std::error::Error>> {
-        self.state = AppState::Loading("Creating ticket...".to_string());
-        // In a real implementation, this would trigger the async ticket creation
+        self.transition_to_state(AppState::Loading("Creating ticket...".to_string()));
+        // TODO: In a real implementation, this would:
+        // 1. Trigger the async ticket creation
+        // 2. Create a new ticket
+        // 3. Navigate to that new ticket's detail view (becomes new context)
+        // For now, we'll go back to the ticket list
+        // In practice, you'd call something like:
+        // let new_ticket_id = self.create_ticket_async(description).await?;
+        // self.show_ticket_detail(project_name, new_ticket_id)?;
         self.show_ticket_list(project_name)
     }
 
@@ -586,6 +694,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         AppState::ProjectMenu(name) => &format!("📁 Project: {}", name),
         AppState::TicketList(name) => &format!("🎫 Tickets in: {}", name),
         AppState::TicketDetail(name, ticket_id) => &format!("🎫 Ticket {} in: {}", ticket_id, name),
+        AppState::TicketDetailsView(name, ticket_id) => &format!("📄 Details: Ticket {} in: {}", ticket_id, name),
         AppState::CreateProject => "📝 Create New Project",
         AppState::CreateTicket(_) => "📝 Create New Ticket",
         AppState::QuickRefine(_, _) => "🔍 Quick Refine",
@@ -604,6 +713,9 @@ pub fn render(frame: &mut Frame, app: &App) {
         AppState::Input(input_state) => render_input(frame, chunks[1], input_state),
         AppState::Loading(msg) => render_loading(frame, chunks[1], msg),
         AppState::Error(msg) => render_error(frame, chunks[1], msg),
+        AppState::TicketDetailsView(project_name, ticket_id) => {
+            render_ticket_details(frame, chunks[1], app, project_name, ticket_id)
+        },
         _ => render_menu(frame, chunks[1], app),
     }
 
@@ -675,6 +787,116 @@ fn render_error(frame: &mut Frame, area: Rect, message: &str) {
         .style(Style::default().fg(Color::Red))
         .wrap(Wrap { trim: true });
     frame.render_widget(error, area);
+}
+
+fn render_ticket_details(frame: &mut Frame, area: Rect, app: &App, _project_name: &str, ticket_id: &TicketId) {
+    // Split area into ticket details and navigation
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(0),     // Ticket details
+            Constraint::Length(5),  // Navigation
+        ])
+        .split(area);
+
+    // Render ticket details
+    if let Some(project) = &app.current_project {
+        if let Some(node) = project.graph.get_ticket(ticket_id) {
+            let ticket = &node.ticket;
+            
+            // Create detailed text content
+            let mut details = vec![
+                format!("📋 Title: {}", ticket.original_ticket.title),
+                format!("🆔 ID: {}", ticket_id),
+                format!("📝 Raw Input: {}", ticket.original_ticket.raw_input),
+                "".to_string(),
+                "🎯 Decomposed Ticket:".to_string(),
+                format!("  Status: {:?}", ticket.decomposed_ticket.metadata.status),
+                format!("  Priority: {:?}", ticket.decomposed_ticket.metadata.priority),
+                format!("  Complexity: {:?}", ticket.decomposed_ticket.metadata.estimated_complexity),
+                "".to_string(),
+            ];
+            
+            // Add terms
+            if !ticket.decomposed_ticket.terms.is_empty() {
+                details.push("📚 Terms:".to_string());
+                for (term, definition) in &ticket.decomposed_ticket.terms {
+                    details.push(format!("  • {}: {}", term, definition));
+                }
+                details.push("".to_string());
+            }
+            
+            // Add validation method
+            if !ticket.decomposed_ticket.validation_method.is_empty() {
+                details.push("✅ Validation Method:".to_string());
+                for (i, method) in ticket.decomposed_ticket.validation_method.iter().enumerate() {
+                    details.push(format!("  {}. {}", i + 1, method));
+                }
+                details.push("".to_string());
+            }
+            
+            // Add open questions
+            if !ticket.decomposed_ticket.open_questions.is_empty() {
+                details.push("❓ Open Questions:".to_string());
+                for (i, question) in ticket.decomposed_ticket.open_questions.iter().enumerate() {
+                    details.push(format!("  {}. {}", i + 1, question));
+                }
+                details.push("".to_string());
+            }
+            
+            // Add engine questions
+            if !ticket.decomposed_ticket.engine_questions.is_empty() {
+                details.push("❓ Engine Questions:".to_string());
+                for (i, question) in ticket.decomposed_ticket.engine_questions.iter().enumerate() {
+                    details.push(format!("  {}. {}", i + 1, question));
+                }
+                details.push("".to_string());
+            }
+            
+            // Add terms needing refinement
+            if !ticket.decomposed_ticket.terms_needing_refinement.is_empty() {
+                details.push("🔍 Terms Needing Refinement:".to_string());
+                for (i, request) in ticket.decomposed_ticket.terms_needing_refinement.iter().enumerate() {
+                    let priority_emoji = match request.priority {
+                        control_flow::ticket::RefinementPriority::Critical => "🔥",
+                        control_flow::ticket::RefinementPriority::High => "🟥",
+                        control_flow::ticket::RefinementPriority::Medium => "🟨",
+                        control_flow::ticket::RefinementPriority::Low => "🟩",
+                    };
+                    details.push(format!("  {}. {} {} - {}", i + 1, priority_emoji, request.term, request.reason));
+                }
+                details.push("".to_string());
+            }
+            
+            // Add dependencies info
+            if !node.dependencies.is_empty() {
+                details.push(format!("🔗 Dependencies: {} ticket(s)", node.dependencies.len()));
+            }
+            if !node.dependents.is_empty() {
+                details.push(format!("⬆️ Dependents: {} ticket(s)", node.dependents.len()));
+            }
+            
+            let content = details.join("\n");
+            let paragraph = Paragraph::new(content)
+                .block(Block::default().borders(Borders::ALL).title("Ticket Details"))
+                .style(Style::default().fg(Color::White))
+                .wrap(Wrap { trim: true });
+            frame.render_widget(paragraph, chunks[0]);
+        } else {
+            let error = Paragraph::new("❌ Ticket not found")
+                .block(Block::default().borders(Borders::ALL).title("Error"))
+                .style(Style::default().fg(Color::Red));
+            frame.render_widget(error, chunks[0]);
+        }
+    } else {
+        let error = Paragraph::new("❌ No project loaded")
+            .block(Block::default().borders(Borders::ALL).title("Error"))
+            .style(Style::default().fg(Color::Red));
+        frame.render_widget(error, chunks[0]);
+    }
+    
+    // Render navigation menu at bottom
+    render_menu(frame, chunks[1], app);
 }
 
 #[tokio::main]
