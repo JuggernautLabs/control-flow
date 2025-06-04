@@ -1,0 +1,4 @@
+{
+  "tui_test": "./control-flow-projects/tui_test.json",
+  "test_project": "./control-flow-projects/test_project.json"
+}
