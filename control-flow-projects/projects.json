@@ -1,4 +1,3 @@
 {
-  "tui_test": "./control-flow-projects/tui_test.json",
-  "test_project": "./control-flow-projects/todo_app.json"
+  "todo": "./control-flow-projects/todo_app.json"
 }

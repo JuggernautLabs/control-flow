@@ -11,6 +11,7 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame, Terminal,
 };
@@ -31,12 +32,45 @@ pub enum AppState {
     TicketList(String),  // project name
     TicketDetail(String, TicketId), // project name, ticket id - menu view
     TicketDetailsView(String, TicketId), // project name, ticket id - detailed content view
+    TicketFieldAction(String, TicketId, TicketField), // project name, ticket id, selected field
+    TicketSearch(String, TicketId, SearchState), // project name, ticket id, search state
     CreateProject,
     CreateTicket(String), // project name
     QuickRefine(String, TicketId), // project name, ticket id
     Input(InputState),
     Loading(String), // loading message
     Error(String),   // error message
+}
+
+#[derive(Debug, Clone)]
+pub enum TicketField {
+    Title,
+    RawInput,
+    Status,
+    Priority,
+    Complexity,
+    Terms(String), // specific term key
+    ValidationMethod(usize), // index
+    OpenQuestion(usize), // index
+    EngineQuestion(usize), // index
+    RefinementRequest(usize), // index
+    Dependencies,
+    Dependents,
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchState {
+    pub query: String,
+    pub matches: Vec<SearchMatch>,
+    pub current_match: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchMatch {
+    pub field: TicketField,
+    pub text: String,
+    pub match_start: usize,
+    pub match_end: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +90,8 @@ pub struct App {
     pub current_project: Option<Project>,
     pub ticket_service: TicketService<ClaudeClient>,
     pub items: Vec<String>, // Current menu items
+    pub ticket_fields: Vec<TicketField>, // Available fields in ticket details view
+    pub field_actions: Vec<String>, // Available actions for selected field
     pub should_quit: bool,
 }
 
@@ -93,6 +129,8 @@ impl App {
             current_project: None,
             ticket_service,
             items,
+            ticket_fields: Vec::new(),
+            field_actions: Vec::new(),
             should_quit: false,
         })
     }
@@ -116,6 +154,11 @@ impl App {
                     self.show_ticket_detail(project_name, ticket_id).ok();
                 },
                 AppState::TicketDetailsView(project_name, ticket_id) => {
+                    let project_name = project_name.clone();
+                    let ticket_id = ticket_id.clone();
+                    self.show_ticket_details_view(project_name, ticket_id).ok();
+                },
+                AppState::TicketSearch(project_name, ticket_id, _) => {
                     let project_name = project_name.clone();
                     let ticket_id = ticket_id.clone();
                     self.show_ticket_details_view(project_name, ticket_id).ok();
@@ -146,8 +189,23 @@ impl App {
                 } else if matches!(self.state, AppState::Loading(_) | AppState::Error(_)) {
                     // Return to previous context for Loading/Error states
                     self.return_to_context();
+                } else if matches!(self.state, AppState::TicketSearch(_, _, _)) {
+                    // Exit search mode and return to ticket details view
+                    if let AppState::TicketSearch(project_name, ticket_id, _) = &self.state {
+                        let project_name = project_name.clone();
+                        let ticket_id = ticket_id.clone();
+                        self.show_ticket_details_view(project_name, ticket_id)?;
+                    }
                 } else {
                     self.go_back();
+                }
+            }
+            KeyCode::Char('/') => {
+                // Enter search mode if in ticket details view
+                if let AppState::TicketDetailsView(project_name, ticket_id) = &self.state {
+                    let project_name = project_name.clone();
+                    let ticket_id = ticket_id.clone();
+                    self.start_ticket_search(project_name, ticket_id)?;
                 }
             }
             KeyCode::Up => self.move_up(),
@@ -156,11 +214,30 @@ impl App {
             KeyCode::Char(c) => {
                 if let AppState::Input(ref mut input_state) = self.state {
                     input_state.input.push(c);
+                } else if let AppState::TicketSearch(_, _, ref mut search_state) = self.state {
+                    if c != '/' {  // Don't add the initial '/' character
+                        search_state.query.push(c);
+                        self.update_search_matches()?;
+                    }
+                } else if let AppState::TicketDetailsView(project_name, ticket_id) = &self.state {
+                    // Handle number keys for action execution
+                    if c.is_ascii_digit() && c != '0' {
+                        let action_index = (c as usize) - ('1' as usize);
+                        if self.selected_index < self.ticket_fields.len() {
+                            let field = self.ticket_fields[self.selected_index].clone();
+                            let project_name = project_name.clone();
+                            let ticket_id = ticket_id.clone();
+                            self.execute_field_action(project_name, ticket_id, field, action_index)?;
+                        }
+                    }
                 }
             }
             KeyCode::Backspace => {
                 if let AppState::Input(ref mut input_state) = self.state {
                     input_state.input.pop();
+                } else if let AppState::TicketSearch(_, _, ref mut search_state) = self.state {
+                    search_state.query.pop();
+                    self.update_search_matches()?;
                 }
             }
             _ => {}
@@ -215,6 +292,12 @@ impl App {
                 let project_name = project_name.clone();
                 let ticket_id = ticket_id.clone();
                 self.handle_ticket_details_view_selection(project_name, ticket_id)?;
+            },
+            AppState::TicketSearch(project_name, ticket_id, search_state) => {
+                let project_name = project_name.clone();
+                let ticket_id = ticket_id.clone();
+                let search_state = search_state.clone();
+                self.handle_ticket_search_selection(project_name, ticket_id, search_state)?;
             },
             AppState::QuickRefine(project_name, ticket_id) => {
                 let project_name = project_name.clone();
@@ -333,12 +416,81 @@ impl App {
 
     fn show_ticket_details_view(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(project) = &self.current_project {
-            if let Some(_node) = project.graph.get_ticket(&ticket_id) {
-                // Show basic navigation options for the details view
-                self.items = vec![
-                    "← Back to ticket menu".to_string(),
-                ];
+            if let Some(node) = project.graph.get_ticket(&ticket_id) {
+                let ticket = &node.ticket;
                 
+                // Build the list of available fields to navigate
+                let mut fields = Vec::new();
+                let mut items = Vec::new();
+                
+                // Basic ticket info
+                fields.push(TicketField::Title);
+                items.push(format!("📋 Title: {}", ticket.original_ticket.title));
+                
+                fields.push(TicketField::RawInput);
+                items.push("📝 Raw Input".to_string());
+                
+                fields.push(TicketField::Status);
+                items.push(format!("📊 Status: {:?}", ticket.decomposed_ticket.metadata.status));
+                
+                fields.push(TicketField::Priority);
+                items.push(format!("🎯 Priority: {:?}", ticket.decomposed_ticket.metadata.priority));
+                
+                fields.push(TicketField::Complexity);
+                items.push(format!("⚡ Complexity: {:?}", ticket.decomposed_ticket.metadata.estimated_complexity));
+                
+                // Terms
+                for (term, _) in &ticket.decomposed_ticket.terms {
+                    fields.push(TicketField::Terms(term.clone()));
+                    items.push(format!("📚 Term: {}", term));
+                }
+                
+                // Validation methods
+                for (i, _) in ticket.decomposed_ticket.validation_method.iter().enumerate() {
+                    fields.push(TicketField::ValidationMethod(i));
+                    items.push(format!("✅ Validation Method #{}", i + 1));
+                }
+                
+                // Open questions
+                for (i, _) in ticket.decomposed_ticket.open_questions.iter().enumerate() {
+                    fields.push(TicketField::OpenQuestion(i));
+                    items.push(format!("❓ Open Question #{}", i + 1));
+                }
+                
+                // Engine questions
+                for (i, _) in ticket.decomposed_ticket.engine_questions.iter().enumerate() {
+                    fields.push(TicketField::EngineQuestion(i));
+                    items.push(format!("🔧 Engine Question #{}", i + 1));
+                }
+                
+                // Refinement requests
+                for (i, request) in ticket.decomposed_ticket.terms_needing_refinement.iter().enumerate() {
+                    fields.push(TicketField::RefinementRequest(i));
+                    let priority_emoji = match request.priority {
+                        control_flow::ticket::RefinementPriority::Critical => "🔥",
+                        control_flow::ticket::RefinementPriority::High => "🟥",
+                        control_flow::ticket::RefinementPriority::Medium => "🟨",
+                        control_flow::ticket::RefinementPriority::Low => "🟩",
+                    };
+                    items.push(format!("🔍 {} Refinement: {}", priority_emoji, request.term));
+                }
+                
+                // Dependencies and dependents
+                if !node.dependencies.is_empty() {
+                    fields.push(TicketField::Dependencies);
+                    items.push(format!("🔗 Dependencies ({})", node.dependencies.len()));
+                }
+                
+                if !node.dependents.is_empty() {
+                    fields.push(TicketField::Dependents);
+                    items.push(format!("⬆️ Dependents ({})", node.dependents.len()));
+                }
+                
+                // Add back option
+                items.push("← Back to ticket menu".to_string());
+                
+                self.ticket_fields = fields;
+                self.items = items;
                 self.state = AppState::TicketDetailsView(project_name, ticket_id);
                 self.selected_index = 0;
                 self.scroll_offset = 0;
@@ -352,12 +504,135 @@ impl App {
     }
 
     fn handle_ticket_details_view_selection(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
-        match self.selected_index {
-            0 => {
-                // Back to ticket menu
-                self.show_ticket_detail(project_name, ticket_id)?;
-            },
-            _ => {}
+        if self.selected_index == self.items.len() - 1 {
+            // "← Back to ticket menu" selected (always last item)
+            self.show_ticket_detail(project_name, ticket_id)?;
+        } else if self.selected_index < self.ticket_fields.len() {
+            // A field was selected - execute the first action for that field (most common action)
+            let field = self.ticket_fields[self.selected_index].clone();
+            self.execute_field_action(project_name, ticket_id, field, 0)?;
+        }
+        Ok(())
+    }
+
+    fn execute_field_action(&mut self, _project_name: String, ticket_id: TicketId, field: TicketField, action_index: usize) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the available actions for this field
+        let (actions, _) = get_field_actions_with_content(self, &ticket_id, &field);
+        
+        if action_index < actions.len() {
+            let action = &actions[action_index];
+            let field_name = self.get_field_display_name(&field);
+            
+            // For now, show loading message with the action being executed
+            self.transition_to_state(AppState::Loading(format!("Executing: {} on {}", action, field_name)));
+            
+            // TODO: Implement actual action execution based on action type
+            // Examples:
+            // - "View full content" -> show detailed view
+            // - "Create refinement ticket" -> trigger ticket creation workflow
+            // - "Edit definition" -> open edit mode
+            // - "Answer question" -> open answer input
+            // - etc.
+        } else {
+            self.transition_to_state(AppState::Error("Invalid action selected".to_string()));
+        }
+        
+        Ok(())
+    }
+
+
+    fn get_field_display_name(&self, field: &TicketField) -> String {
+        match field {
+            TicketField::Title => "Title".to_string(),
+            TicketField::RawInput => "Raw Input".to_string(),
+            TicketField::Status => "Status".to_string(),
+            TicketField::Priority => "Priority".to_string(),
+            TicketField::Complexity => "Complexity".to_string(),
+            TicketField::Terms(term) => format!("Term: {}", term),
+            TicketField::ValidationMethod(i) => format!("Validation #{}", i + 1),
+            TicketField::OpenQuestion(i) => format!("Question #{}", i + 1),
+            TicketField::EngineQuestion(i) => format!("Engine Q #{}", i + 1),
+            TicketField::RefinementRequest(i) => format!("Refinement #{}", i + 1),
+            TicketField::Dependencies => "Dependencies".to_string(),
+            TicketField::Dependents => "Dependents".to_string(),
+        }
+    }
+
+
+    fn start_ticket_search(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
+        let search_state = SearchState {
+            query: String::new(),
+            matches: Vec::new(),
+            current_match: 0,
+        };
+        
+        self.state = AppState::TicketSearch(project_name, ticket_id, search_state);
+        Ok(())
+    }
+
+    fn update_search_matches(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if let AppState::TicketSearch(_, ref ticket_id, ref mut search_state) = &mut self.state {
+            if search_state.query.is_empty() {
+                search_state.matches.clear();
+                search_state.current_match = 0;
+                return Ok(());
+            }
+            
+            // Search through ticket content
+            search_state.matches.clear();
+            
+            if let Some(project) = &self.current_project {
+                if let Some(node) = project.graph.get_ticket(ticket_id) {
+                    let ticket = &node.ticket;
+                    let query = search_state.query.to_lowercase();
+                    
+                    // Search in title
+                    if ticket.original_ticket.title.to_lowercase().contains(&query) {
+                        search_state.matches.push(SearchMatch {
+                            field: TicketField::Title,
+                            text: ticket.original_ticket.title.clone(),
+                            match_start: ticket.original_ticket.title.to_lowercase().find(&query).unwrap_or(0),
+                            match_end: ticket.original_ticket.title.to_lowercase().find(&query).unwrap_or(0) + query.len(),
+                        });
+                    }
+                    
+                    // Search in raw input
+                    if ticket.original_ticket.raw_input.to_lowercase().contains(&query) {
+                        search_state.matches.push(SearchMatch {
+                            field: TicketField::RawInput,
+                            text: ticket.original_ticket.raw_input.clone(),
+                            match_start: ticket.original_ticket.raw_input.to_lowercase().find(&query).unwrap_or(0),
+                            match_end: ticket.original_ticket.raw_input.to_lowercase().find(&query).unwrap_or(0) + query.len(),
+                        });
+                    }
+                    
+                    // Search in terms
+                    for (term, definition) in &ticket.decomposed_ticket.terms {
+                        if term.to_lowercase().contains(&query) || definition.to_lowercase().contains(&query) {
+                            search_state.matches.push(SearchMatch {
+                                field: TicketField::Terms(term.clone()),
+                                text: format!("{}: {}", term, definition),
+                                match_start: 0, // Simplified for now
+                                match_end: query.len(),
+                            });
+                        }
+                    }
+                    
+                    // Reset current match if out of bounds
+                    if search_state.current_match >= search_state.matches.len() {
+                        search_state.current_match = 0;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_ticket_search_selection(&mut self, project_name: String, ticket_id: TicketId, mut search_state: SearchState) -> Result<(), Box<dyn std::error::Error>> {
+        if !search_state.matches.is_empty() {
+            // Move to next match
+            search_state.current_match = (search_state.current_match + 1) % search_state.matches.len();
+            self.state = AppState::TicketSearch(project_name, ticket_id, search_state);
         }
         Ok(())
     }
@@ -482,6 +757,11 @@ impl App {
                 let project_name = project_name.clone();
                 let ticket_id = ticket_id.clone();
                 self.show_ticket_detail(project_name, ticket_id).ok();
+            },
+            AppState::TicketSearch(project_name, ticket_id, _) => {
+                let project_name = project_name.clone();
+                let ticket_id = ticket_id.clone();
+                self.show_ticket_details_view(project_name, ticket_id).ok();
             },
             AppState::QuickRefine(project_name, ticket_id) => {
                 let project_name = project_name.clone();
@@ -695,6 +975,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         AppState::TicketList(name) => &format!("🎫 Tickets in: {}", name),
         AppState::TicketDetail(name, ticket_id) => &format!("🎫 Ticket {} in: {}", ticket_id, name),
         AppState::TicketDetailsView(name, ticket_id) => &format!("📄 Details: Ticket {} in: {}", ticket_id, name),
+        AppState::TicketFieldAction(name, ticket_id, _) => &format!("⚡ Actions: Ticket {} in: {}", ticket_id, name),
+        AppState::TicketSearch(name, ticket_id, _) => &format!("🔍 Search: Ticket {} in: {}", ticket_id, name),
         AppState::CreateProject => "📝 Create New Project",
         AppState::CreateTicket(_) => "📝 Create New Ticket",
         AppState::QuickRefine(_, _) => "🔍 Quick Refine",
@@ -716,12 +998,17 @@ pub fn render(frame: &mut Frame, app: &App) {
         AppState::TicketDetailsView(project_name, ticket_id) => {
             render_ticket_details(frame, chunks[1], app, project_name, ticket_id)
         },
+        AppState::TicketSearch(project_name, ticket_id, search_state) => {
+            render_ticket_search(frame, chunks[1], app, project_name, ticket_id, search_state)
+        },
         _ => render_menu(frame, chunks[1], app),
     }
 
     // Footer with instructions
     let instructions = match &app.state {
         AppState::Input(_) => "Enter: Submit | Esc: Cancel | Backspace: Delete",
+        AppState::TicketDetailsView(_, _) => "↑↓: Navigate | 1-9: Execute action | Enter: Default action | /: Search | Esc: Back",
+        AppState::TicketSearch(_, _, _) => "Type: Search | Enter: Next match | Esc: Exit search",
         _ => "↑↓: Navigate | Enter: Select | Esc/Q: Back/Quit",
     };
     
@@ -795,89 +1082,19 @@ fn render_ticket_details(frame: &mut Frame, area: Rect, app: &App, _project_name
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(0),     // Ticket details
-            Constraint::Length(5),  // Navigation
+            Constraint::Length(30),  // Navigation
         ])
         .split(area);
 
-    // Render ticket details
+    // Render ticket details with highlighting for selected field
     if let Some(project) = &app.current_project {
         if let Some(node) = project.graph.get_ticket(ticket_id) {
             let ticket = &node.ticket;
             
-            // Create detailed text content
-            let mut details = vec![
-                format!("📋 Title: {}", ticket.original_ticket.title),
-                format!("🆔 ID: {}", ticket_id),
-                format!("📝 Raw Input: {}", ticket.original_ticket.raw_input),
-                "".to_string(),
-                "🎯 Decomposed Ticket:".to_string(),
-                format!("  Status: {:?}", ticket.decomposed_ticket.metadata.status),
-                format!("  Priority: {:?}", ticket.decomposed_ticket.metadata.priority),
-                format!("  Complexity: {:?}", ticket.decomposed_ticket.metadata.estimated_complexity),
-                "".to_string(),
-            ];
+            // Build the detailed content with highlighting for the selected field
+            let lines = build_ticket_lines_with_highlight(ticket, node, ticket_id, app.selected_index, &app.ticket_fields);
             
-            // Add terms
-            if !ticket.decomposed_ticket.terms.is_empty() {
-                details.push("📚 Terms:".to_string());
-                for (term, definition) in &ticket.decomposed_ticket.terms {
-                    details.push(format!("  • {}: {}", term, definition));
-                }
-                details.push("".to_string());
-            }
-            
-            // Add validation method
-            if !ticket.decomposed_ticket.validation_method.is_empty() {
-                details.push("✅ Validation Method:".to_string());
-                for (i, method) in ticket.decomposed_ticket.validation_method.iter().enumerate() {
-                    details.push(format!("  {}. {}", i + 1, method));
-                }
-                details.push("".to_string());
-            }
-            
-            // Add open questions
-            if !ticket.decomposed_ticket.open_questions.is_empty() {
-                details.push("❓ Open Questions:".to_string());
-                for (i, question) in ticket.decomposed_ticket.open_questions.iter().enumerate() {
-                    details.push(format!("  {}. {}", i + 1, question));
-                }
-                details.push("".to_string());
-            }
-            
-            // Add engine questions
-            if !ticket.decomposed_ticket.engine_questions.is_empty() {
-                details.push("❓ Engine Questions:".to_string());
-                for (i, question) in ticket.decomposed_ticket.engine_questions.iter().enumerate() {
-                    details.push(format!("  {}. {}", i + 1, question));
-                }
-                details.push("".to_string());
-            }
-            
-            // Add terms needing refinement
-            if !ticket.decomposed_ticket.terms_needing_refinement.is_empty() {
-                details.push("🔍 Terms Needing Refinement:".to_string());
-                for (i, request) in ticket.decomposed_ticket.terms_needing_refinement.iter().enumerate() {
-                    let priority_emoji = match request.priority {
-                        control_flow::ticket::RefinementPriority::Critical => "🔥",
-                        control_flow::ticket::RefinementPriority::High => "🟥",
-                        control_flow::ticket::RefinementPriority::Medium => "🟨",
-                        control_flow::ticket::RefinementPriority::Low => "🟩",
-                    };
-                    details.push(format!("  {}. {} {} - {}", i + 1, priority_emoji, request.term, request.reason));
-                }
-                details.push("".to_string());
-            }
-            
-            // Add dependencies info
-            if !node.dependencies.is_empty() {
-                details.push(format!("🔗 Dependencies: {} ticket(s)", node.dependencies.len()));
-            }
-            if !node.dependents.is_empty() {
-                details.push(format!("⬆️ Dependents: {} ticket(s)", node.dependents.len()));
-            }
-            
-            let content = details.join("\n");
-            let paragraph = Paragraph::new(content)
+            let paragraph = Paragraph::new(lines)
                 .block(Block::default().borders(Borders::ALL).title("Ticket Details"))
                 .style(Style::default().fg(Color::White))
                 .wrap(Wrap { trim: true });
@@ -895,8 +1112,386 @@ fn render_ticket_details(frame: &mut Frame, area: Rect, app: &App, _project_name
         frame.render_widget(error, chunks[0]);
     }
     
-    // Render navigation menu at bottom
-    render_menu(frame, chunks[1], app);
+    // Render contextual actions for selected field in bottom pane
+    render_field_actions_menu(frame, chunks[1], app, ticket_id);
+}
+
+fn build_ticket_lines_with_highlight(
+    ticket: &control_flow::ticket::TicketDecomposition,
+    node: &control_flow::ticket::TicketNode,
+    _ticket_id: &TicketId,
+    selected_index: usize,
+    ticket_fields: &[TicketField]
+) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let mut field_index = 0;
+    
+    // Helper to create a line with potential highlighting
+    let create_field_line = |text: String, field_index: usize, field_type: &TicketField| -> Line<'static> {
+        if field_index == selected_index && field_index < ticket_fields.len() {
+            // Check if this is the selected field
+            if std::mem::discriminant(&ticket_fields[field_index]) == std::mem::discriminant(field_type) {
+                // Create highlighted line with white background
+                Line::from(vec![Span::styled(
+                    text,
+                    Style::default().fg(Color::Black).bg(Color::White).add_modifier(Modifier::BOLD)
+                )])
+            } else {
+                Line::from(text)
+            }
+        } else {
+            Line::from(text)
+        }
+    };
+    
+    // Basic ticket info
+    lines.push(create_field_line(format!("📋 Title: {}", ticket.original_ticket.title), field_index, &TicketField::Title));
+    field_index += 1;
+    
+    lines.push(create_field_line("📝 Raw Input".to_string(), field_index, &TicketField::RawInput));
+    field_index += 1;
+    
+    lines.push(create_field_line(format!("📊 Status: {:?}", ticket.decomposed_ticket.metadata.status), field_index, &TicketField::Status));
+    field_index += 1;
+    
+    lines.push(create_field_line(format!("🎯 Priority: {:?}", ticket.decomposed_ticket.metadata.priority), field_index, &TicketField::Priority));
+    field_index += 1;
+    
+    lines.push(create_field_line(format!("⚡ Complexity: {:?}", ticket.decomposed_ticket.metadata.estimated_complexity), field_index, &TicketField::Complexity));
+    field_index += 1;
+    
+    // Add empty line separator
+    lines.push(Line::from(""));
+    
+    // Terms
+    for (term, definition) in &ticket.decomposed_ticket.terms {
+        lines.push(create_field_line(format!("📚 Term: {} = {}", term, definition), field_index, &TicketField::Terms(term.clone())));
+        field_index += 1;
+    }
+    
+    if !ticket.decomposed_ticket.terms.is_empty() {
+        lines.push(Line::from(""));
+    }
+    
+    // Validation methods
+    for (i, method) in ticket.decomposed_ticket.validation_method.iter().enumerate() {
+        lines.push(create_field_line(format!("✅ Validation #{}: {}", i + 1, method), field_index, &TicketField::ValidationMethod(i)));
+        field_index += 1;
+    }
+    
+    if !ticket.decomposed_ticket.validation_method.is_empty() {
+        lines.push(Line::from(""));
+    }
+    
+    // Open questions
+    for (i, question) in ticket.decomposed_ticket.open_questions.iter().enumerate() {
+        lines.push(create_field_line(format!("❓ Open Question #{}: {}", i + 1, question), field_index, &TicketField::OpenQuestion(i)));
+        field_index += 1;
+    }
+    
+    if !ticket.decomposed_ticket.open_questions.is_empty() {
+        lines.push(Line::from(""));
+    }
+    
+    // Engine questions
+    for (i, question) in ticket.decomposed_ticket.engine_questions.iter().enumerate() {
+        lines.push(create_field_line(format!("🔧 Engine Question #{}: {}", i + 1, question), field_index, &TicketField::EngineQuestion(i)));
+        field_index += 1;
+    }
+    
+    if !ticket.decomposed_ticket.engine_questions.is_empty() {
+        lines.push(Line::from(""));
+    }
+    
+    // Refinement requests
+    for (i, request) in ticket.decomposed_ticket.terms_needing_refinement.iter().enumerate() {
+        let priority_emoji = match request.priority {
+            control_flow::ticket::RefinementPriority::Critical => "🔥",
+            control_flow::ticket::RefinementPriority::High => "🟥",
+            control_flow::ticket::RefinementPriority::Medium => "🟨",
+            control_flow::ticket::RefinementPriority::Low => "🟩",
+        };
+        lines.push(create_field_line(
+            format!("🔍 {} Refinement #{}: {} - {}", priority_emoji, i + 1, request.term, request.reason),
+            field_index,
+            &TicketField::RefinementRequest(i)
+        ));
+        field_index += 1;
+    }
+    
+    if !ticket.decomposed_ticket.terms_needing_refinement.is_empty() {
+        lines.push(Line::from(""));
+    }
+    
+    // Dependencies and dependents
+    if !node.dependencies.is_empty() {
+        lines.push(create_field_line(format!("🔗 Dependencies ({})", node.dependencies.len()), field_index, &TicketField::Dependencies));
+        field_index += 1;
+    }
+    
+    if !node.dependents.is_empty() {
+        lines.push(create_field_line(format!("⬆️ Dependents ({})", node.dependents.len()), field_index, &TicketField::Dependents));
+        field_index += 1;
+    }
+    
+    lines
+}
+
+fn render_field_actions_menu(frame: &mut Frame, area: Rect, app: &App, ticket_id: &TicketId) {
+    // Get the currently selected field
+    if app.selected_index < app.ticket_fields.len() {
+        let selected_field = &app.ticket_fields[app.selected_index];
+        
+        // Generate contextual actions for the selected field
+        let (actions, field_context) = get_field_actions_with_content(app, ticket_id, selected_field);
+        
+        // Create action items for display
+        let action_items: Vec<ListItem> = actions.iter().enumerate().map(|(i, action)| {
+            let style = Style::default().fg(Color::White);
+            ListItem::new(format!("{}. {}", i + 1, action)).style(style)
+        }).collect();
+        
+        // Create the action list
+        let actions_list = List::new(action_items)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title(format!("Actions for: {}", field_context)))
+            .style(Style::default().fg(Color::Green));
+            
+        frame.render_widget(actions_list, area);
+    } else {
+        // Show back option or general navigation
+        let back_item = vec![ListItem::new("← Back to ticket menu")];
+        let back_list = List::new(back_item)
+            .block(Block::default().borders(Borders::ALL).title("Navigation"))
+            .style(Style::default().fg(Color::Yellow));
+        frame.render_widget(back_list, area);
+    }
+}
+
+fn get_field_actions_with_content(app: &App, ticket_id: &TicketId, field: &TicketField) -> (Vec<String>, String) {
+    if let Some(project) = &app.current_project {
+        if let Some(node) = project.graph.get_ticket(ticket_id) {
+            let ticket = &node.ticket;
+            
+            match field {
+                TicketField::Title => {
+                    let context = format!("Title: {}", ticket.original_ticket.title);
+                    let actions = vec![
+                        "View full title".to_string(),
+                        "Edit title".to_string(),
+                        "Copy to clipboard".to_string(),
+                    ];
+                    (actions, context)
+                },
+                TicketField::RawInput => {
+                    let preview = ticket.original_ticket.raw_input.chars().take(50).collect::<String>();
+                    let context = format!("Raw Input: {}...", preview);
+                    let actions = vec![
+                        "View full content".to_string(),
+                        "Edit raw input".to_string(),
+                        "Re-decompose ticket".to_string(),
+                        "Copy to clipboard".to_string(),
+                    ];
+                    (actions, context)
+                },
+                TicketField::Status => {
+                    let context = format!("Status: {:?}", ticket.decomposed_ticket.metadata.status);
+                    let actions = vec![
+                        "Change status".to_string(),
+                        "View status history".to_string(),
+                        "Copy status".to_string(),
+                    ];
+                    (actions, context)
+                },
+                TicketField::Priority => {
+                    let context = format!("Priority: {:?}", ticket.decomposed_ticket.metadata.priority);
+                    let actions = vec![
+                        "Change priority".to_string(),
+                        "View priority reasoning".to_string(),
+                        "Copy priority".to_string(),
+                    ];
+                    (actions, context)
+                },
+                TicketField::Complexity => {
+                    let context = format!("Complexity: {:?}", ticket.decomposed_ticket.metadata.estimated_complexity);
+                    let actions = vec![
+                        "Re-estimate complexity".to_string(),
+                        "View complexity breakdown".to_string(),
+                        "Copy complexity".to_string(),
+                    ];
+                    (actions, context)
+                },
+                TicketField::Terms(term_key) => {
+                    if let Some(definition) = ticket.decomposed_ticket.terms.get(term_key) {
+                        let preview = definition.chars().take(40).collect::<String>();
+                        let context = format!("Term: {} = {}...", term_key, preview);
+                        let actions = vec![
+                            "View full definition".to_string(),
+                            "Edit definition".to_string(),
+                            "Create refinement ticket".to_string(),
+                            "Find related terms".to_string(),
+                            "Copy term and definition".to_string(),
+                        ];
+                        (actions, context)
+                    } else {
+                        (vec!["Term not found".to_string()], format!("Term: {}", term_key))
+                    }
+                },
+                TicketField::ValidationMethod(index) => {
+                    if let Some(method) = ticket.decomposed_ticket.validation_method.get(*index) {
+                        let preview = method.chars().take(40).collect::<String>();
+                        let context = format!("Validation #{}: {}...", index + 1, preview);
+                        let actions = vec![
+                            "View full method".to_string(),
+                            "Execute validation".to_string(),
+                            "Edit method".to_string(),
+                            "Create validation ticket".to_string(),
+                            "Copy method".to_string(),
+                        ];
+                        (actions, context)
+                    } else {
+                        (vec!["Method not found".to_string()], format!("Validation #{}", index + 1))
+                    }
+                },
+                TicketField::OpenQuestion(index) => {
+                    if let Some(question) = ticket.decomposed_ticket.open_questions.get(*index) {
+                        let preview = question.chars().take(40).collect::<String>();
+                        let context = format!("Open Question #{}: {}...", index + 1, preview);
+                        let actions = vec![
+                            "View full question".to_string(),
+                            "Answer question".to_string(),
+                            "Create research ticket".to_string(),
+                            "Mark as resolved".to_string(),
+                            "Copy question".to_string(),
+                        ];
+                        (actions, context)
+                    } else {
+                        (vec!["Question not found".to_string()], format!("Open Question #{}", index + 1))
+                    }
+                },
+                TicketField::EngineQuestion(index) => {
+                    if let Some(question) = ticket.decomposed_ticket.engine_questions.get(*index) {
+                        let preview = question.chars().take(40).collect::<String>();
+                        let context = format!("Engine Question #{}: {}...", index + 1, preview);
+                        let actions = vec![
+                            "View full question".to_string(),
+                            "Provide answer".to_string(),
+                            "Create investigation ticket".to_string(),
+                            "Escalate to expert".to_string(),
+                            "Copy question".to_string(),
+                        ];
+                        (actions, context)
+                    } else {
+                        (vec!["Question not found".to_string()], format!("Engine Question #{}", index + 1))
+                    }
+                },
+                TicketField::RefinementRequest(index) => {
+                    if let Some(request) = ticket.decomposed_ticket.terms_needing_refinement.get(*index) {
+                        let priority_emoji = match request.priority {
+                            control_flow::ticket::RefinementPriority::Critical => "🔥",
+                            control_flow::ticket::RefinementPriority::High => "🟥",
+                            control_flow::ticket::RefinementPriority::Medium => "🟨",
+                            control_flow::ticket::RefinementPriority::Low => "🟩",
+                        };
+                        let context = format!("{} Refinement #{}: {} - {}", priority_emoji, index + 1, request.term, request.reason);
+                        let actions = vec![
+                            "View full request".to_string(),
+                            "Create refinement ticket".to_string(),
+                            "Change priority".to_string(),
+                            "Mark as resolved".to_string(),
+                            "Research term".to_string(),
+                            "Copy request".to_string(),
+                        ];
+                        (actions, context)
+                    } else {
+                        (vec!["Request not found".to_string()], format!("Refinement #{}", index + 1))
+                    }
+                },
+                TicketField::Dependencies => {
+                    let context = format!("Dependencies ({})", node.dependencies.len());
+                    let actions = vec![
+                        "View all dependencies".to_string(),
+                        "Add new dependency".to_string(),
+                        "Remove dependency".to_string(),
+                        "Navigate to dependency".to_string(),
+                        "Export dependency list".to_string(),
+                    ];
+                    (actions, context)
+                },
+                TicketField::Dependents => {
+                    let context = format!("Dependents ({})", node.dependents.len());
+                    let actions = vec![
+                        "View all dependents".to_string(),
+                        "Navigate to dependent".to_string(),
+                        "View dependency graph".to_string(),
+                        "Export dependents list".to_string(),
+                    ];
+                    (actions, context)
+                },
+            }
+        } else {
+            (vec!["Ticket not found".to_string()], "Unknown".to_string())
+        }
+    } else {
+        (vec!["No project loaded".to_string()], "Unknown".to_string())
+    }
+}
+
+fn render_ticket_search(frame: &mut Frame, area: Rect, _app: &App, _project_name: &str, _ticket_id: &TicketId, search_state: &SearchState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Search input
+            Constraint::Length(3),  // Match counter
+            Constraint::Min(0),     // Search results
+        ])
+        .split(area);
+
+    // Search input
+    let search_input = Paragraph::new(format!("/{}", search_state.query))
+        .block(Block::default().borders(Borders::ALL).title("Search"))
+        .style(Style::default().fg(Color::Yellow));
+    frame.render_widget(search_input, chunks[0]);
+
+    // Match counter
+    let match_info = if search_state.matches.is_empty() {
+        "No matches found".to_string()
+    } else {
+        format!("Match {} of {} | Enter: Next match", 
+               search_state.current_match + 1, 
+               search_state.matches.len())
+    };
+    let match_counter = Paragraph::new(match_info)
+        .block(Block::default().borders(Borders::ALL))
+        .style(Style::default().fg(Color::Green));
+    frame.render_widget(match_counter, chunks[1]);
+
+    // Search results
+    if !search_state.matches.is_empty() {
+        let results: Vec<String> = search_state.matches.iter().enumerate().map(|(i, search_match)| {
+            let prefix = if i == search_state.current_match { "► " } else { "  " };
+            let field_name = match &search_match.field {
+                TicketField::Title => "Title",
+                TicketField::RawInput => "Raw Input",
+                TicketField::Terms(term) => &format!("Term: {}", term),
+                _ => "Other",
+            };
+            format!("{}{}: {}", prefix, field_name, 
+                   search_match.text.chars().take(80).collect::<String>())
+        }).collect();
+
+        let results_list = List::new(results.iter().map(|s| ListItem::new(s.as_str())).collect::<Vec<_>>())
+            .block(Block::default().borders(Borders::ALL).title("Search Results"))
+            .style(Style::default().fg(Color::White));
+        
+        frame.render_widget(results_list, chunks[2]);
+    } else {
+        let no_results = Paragraph::new("Type to search through ticket content...")
+            .block(Block::default().borders(Borders::ALL).title("Search Results"))
+            .style(Style::default().fg(Color::Gray));
+        frame.render_widget(no_results, chunks[2]);
+    }
 }
 
 #[tokio::main]
