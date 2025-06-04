@@ -29,7 +29,12 @@ Every decomposed ticket must contain these exact sections:
       "key": "definition - Clear definitions of domain-specific terms used"
     },
     "termsNeedingRefinement": [
-      "String - Concepts that require further specification"
+      {
+        "term": "String - The specific term/concept that needs refinement",
+        "context": "String - Context in which this term appears in the original request", 
+        "reason": "String - Why this term needs refinement (too vague, multiple interpretations, etc.)",
+        "priority": "Enum - LOW/MEDIUM/HIGH/CRITICAL - How important this refinement is for proceeding"
+      }
     ],
     "openQuestions": [
       "String - Specific questions that need answers to proceed"
@@ -68,6 +73,12 @@ Every decomposed ticket must contain these exact sections:
 - Focus on technical specifications, scope boundaries, and implementation details
 - Prioritize items that would significantly impact development approach
 - Include platform, technology, scale, and user requirements
+- **Structure**: Each term needing refinement must be a structured object with:
+  - `term`: The exact term/concept from the original request that needs clarification
+  - `context`: Where/how this term appears in the original request to provide context
+  - `reason`: Specific explanation of why this term is ambiguous or needs refinement
+  - `priority`: Assessment of refinement urgency (LOW/MEDIUM/HIGH/CRITICAL)
+- Example: `{"term": "user-friendly", "context": "create a user-friendly interface", "reason": "ambiguous - could mean accessible, intuitive, minimalist, or mobile-responsive", "priority": "HIGH"}`
 
 ### 3. Open Questions
 - Ask specific, actionable questions that need answers from stakeholders to proceed
