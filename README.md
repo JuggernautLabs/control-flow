@@ -1,29 +1,89 @@
-# Create T3 App
+# Story Generation Engine
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+A Rust-based story generation engine with TypeScript bindings for building interactive planning narratives.
 
-## What's next? How do I make an app with this?
+## Features
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- **Comprehensive Type System**: Full type definitions for story graphs, nodes, choices, and metadata
+- **TypeScript Integration**: Automatic TypeScript type generation using `ts-rs`
+- **Serialization Support**: JSON serialization/deserialization with `serde`
+- **Async Traits**: Clean async interfaces for story generation engines
+- **Validation Framework**: Built-in coherence checking and validation systems
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Core Types
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+### Story Graph Structure
+- `StoryGraph`: Complete story with nodes, edges, and metadata
+- `StoryNode`: Individual story points with choices and state
+- `Choice`: Decision options with consequences and metadata
+- `StoryEdge`: Connections between nodes with traversal tracking
 
-## Learn More
+### Engine Interfaces
+- `StoryGenerationEngine`: AI-driven story creation and expansion
+- `StoryGraphManager`: Graph manipulation and analytics
+- `QuestionEngine`: Context gathering and uncertainty resolution
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+## Building
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+```bash
+# Build the library
+cargo build
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+# Generate TypeScript types
+cargo run --bin generate-types
 
-## How do I deploy this?
+# Run tests
+cargo test
+```
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+## TypeScript Integration
+
+Generated TypeScript types are available in the `bindings/` directory:
+
+```typescript
+import type { StoryGraph, StoryNode, Choice } from './bindings';
+
+// Use the types in your frontend application
+const story: StoryGraph = {
+  id: "...",
+  title: "My Story",
+  // ... other fields
+};
+```
+
+## Project Structure
+
+```
+src/
+├── lib.rs           # Library entry point
+├── types.rs         # Core type definitions
+├── engine.rs        # Engine traits and utilities
+├── errors.rs        # Error types
+└── bin/
+    └── generate_types.rs  # TypeScript generation script
+
+bindings/            # Generated TypeScript types
+├── index.ts         # Type exports
+├── StoryGraph.ts    # Story graph interface
+├── StoryNode.ts     # Story node interface
+└── ...              # Other generated types
+```
+
+## Usage Example
+
+```rust
+use story_generation_engine::{StoryGraph, StoryNode, NodeType, NodeState};
+
+// Create a new story
+let mut story = StoryGraph::default();
+story.title = "My Adventure".to_string();
+
+// Add a starting node
+let start_node = StoryNode {
+    id: uuid::Uuid::new_v4(),
+    node_type: NodeType::Start,
+    situation: "You stand at the entrance of a mysterious cave...".to_string(),
+    state: NodeState::Current,
+    // ... other fields
+};
+```
