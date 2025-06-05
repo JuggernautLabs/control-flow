@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edge Connection Test</title>
+    <script src="https://unpkg.com/d3@7"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-case { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+        }
+        .pass { border-color: green; background-color: #f0fff0; }
+        .fail { border-color: red; background-color: #fff0f0; }
+        .test-svg { border: 1px solid #ccc; margin: 10px 0; }
+        .node { stroke: #333; stroke-width: 2px; cursor: pointer; }
+        .link { stroke: #999; stroke-opacity: 0.6; stroke-width: 2px; }
+        .node-label { 
+            font-size: 12px; 
+            font-weight: bold; 
+            text-anchor: middle; 
+            dominant-baseline: central; 
+            pointer-events: none; 
+            fill: #333; 
+        }
+    </style>
+</head>
+<body>
+    <h1>D3.js Edge Connection Tests</h1>
+    <div id="test-results"></div>
+
+    <script>
+        class EdgeConnectionTester {
+            constructor() {
+                this.testResults = [];
+                this.testContainer = d3.select('#test-results');
+            }
+
+            async runAllTests() {
+                console.log('🧪 Starting edge connection tests...');
+                
+                await this.testBasicEdgeConnection();
+                await this.testStringIdConversion();
+                await this.testMultipleEdges();
+                await this.testEdgePositioning();
+                
+                this.displayResults();
+            }
+
+            async testBasicEdgeConnection() {
+                const testName = 'Basic Edge Connection';
+                console.log(`Testing: ${testName}`);
+                
+                try {
+                    const nodes = [
+                        { id: 'node1', label: 'Node 1', x: 100, y: 100 },
+                        { id: 'node2', label: 'Node 2', x: 200, y: 150 }
+                    ];
+                    
+                    const links = [
+                        { id: 'edge1', source: 'node1', target: 'node2' }
+                    ];
+                    
+                    const { svg, simulation } = this.createTestVisualization(testName, nodes, links);
+                    
+                    // Wait for simulation to settle
+                    await this.waitForSimulation(simulation);
+                    
+                    // Check if edge connects properly
+                    const linkElement = svg.select('line');
+                    const x1 = parseFloat(linkElement.attr('x1'));
+                    const y1 = parseFloat(linkElement.attr('y1'));
+                    const x2 = parseFloat(linkElement.attr('x2'));
+                    const y2 = parseFloat(linkElement.attr('y2'));
+                    
+                    // Edges should not be at center (300, 150) but at node positions
+                    const notCentered = (x1 !== 300 || y1 !== 150) && (x2 !== 300 || y2 !== 150);
+                    const hasValidCoords = !isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2);
+                    
+                    this.addTestResult(testName, notCentered && hasValidCoords, 
+                        `Edge coords: (${x1},${y1}) to (${x2},${y2}). Expected: not centered at (300,150)`);
+                        
+                } catch (error) {
+                    this.addTestResult(testName, false, `Error: ${error.message}`);
+                }
+            }
+
+            async testStringIdConversion() {
+                const testName = 'String ID to Object Conversion';
+                console.log(`Testing: ${testName}`);
+                
+                try {
+                    const nodes = [
+                        { id: 'source-node', label: 'Source', x: 150, y: 100 },
+                        { id: 'target-node', label: 'Target', x: 250, y: 200 }
+                    ];
+                    
+                    const links = [
+                        { id: 'test-edge', source: 'source-node', target: 'target-node' }
+                    ];
+                    
+                    const { svg, simulation } = this.createTestVisualization(testName, nodes, links);
+                    
+                    // Check the links data after D3 processes it
+                    const linkForce = simulation.force('link');
+                    const processedLinks = linkForce.links();
+                    
+                    // After D3 processes, source/target should be objects, not strings
+                    const link = processedLinks[0];
+                    const sourceIsObject = typeof link.source === 'object' && link.source.id === 'source-node';
+                    const targetIsObject = typeof link.target === 'object' && link.target.id === 'target-node';
+                    
+                    this.addTestResult(testName, sourceIsObject && targetIsObject,
+                        `Source type: ${typeof link.source}, Target type: ${typeof link.target}. Expected: both objects`);
+                        
+                } catch (error) {
+                    this.addTestResult(testName, false, `Error: ${error.message}`);
+                }
+            }
+
+            async testMultipleEdges() {
+                const testName = 'Multiple Edge Connections';
+                console.log(`Testing: ${testName}`);
+                
+                try {
+                    const nodes = [
+                        { id: 'center', label: 'Center', x: 300, y: 150 },
+                        { id: 'top', label: 'Top', x: 300, y: 50 },
+                        { id: 'right', label: 'Right', x: 450, y: 150 },
+                        { id: 'bottom', label: 'Bottom', x: 300, y: 250 }
+                    ];
+                    
+                    const links = [
+                        { id: 'edge1', source: 'center', target: 'top' },
+                        { id: 'edge2', source: 'center', target: 'right' },
+                        { id: 'edge3', source: 'center', target: 'bottom' }
+                    ];
+                    
+                    const { svg, simulation } = this.createTestVisualization(testName, nodes, links);
+                    
+                    await this.waitForSimulation(simulation);
+                    
+                    // Check all edges have different positions
+                    const linkElements = svg.selectAll('line').nodes();
+                    const coords = linkElements.map(link => ({
+                        x1: parseFloat(d3.select(link).attr('x1')),
+                        y1: parseFloat(d3.select(link).attr('y1')),
+                        x2: parseFloat(d3.select(link).attr('x2')),
+                        y2: parseFloat(d3.select(link).attr('y2'))
+                    }));
+                    
+                    // All edges should have different endpoints
+                    const uniqueEndpoints = new Set(coords.map(c => `${c.x2},${c.y2}`));
+                    const allDifferent = uniqueEndpoints.size === coords.length;
+                    
+                    this.addTestResult(testName, allDifferent,
+                        `Found ${uniqueEndpoints.size} unique endpoints out of ${coords.length} edges. Expected: all different`);
+                        
+                } catch (error) {
+                    this.addTestResult(testName, false, `Error: ${error.message}`);
+                }
+            }
+
+            async testEdgePositioning() {
+                const testName = 'Edge Positioning Accuracy';
+                console.log(`Testing: ${testName}`);
+                
+                try {
+                    const nodes = [
+                        { id: 'a', label: 'A', x: 100, y: 100 },
+                        { id: 'b', label: 'B', x: 400, y: 200 }
+                    ];
+                    
+                    const links = [
+                        { id: 'ab', source: 'a', target: 'b' }
+                    ];
+                    
+                    const { svg, simulation } = this.createTestVisualization(testName, nodes, links);
+                    
+                    await this.waitForSimulation(simulation);
+                    
+                    // Get final node positions from simulation
+                    const simNodes = simulation.nodes();
+                    const nodeA = simNodes.find(n => n.id === 'a');
+                    const nodeB = simNodes.find(n => n.id === 'b');
+                    
+                    // Get edge coordinates from DOM
+                    const linkElement = svg.select('line');
+                    const x1 = parseFloat(linkElement.attr('x1'));
+                    const y1 = parseFloat(linkElement.attr('y1'));
+                    const x2 = parseFloat(linkElement.attr('x2'));
+                    const y2 = parseFloat(linkElement.attr('y2'));
+                    
+                    // Edge should connect to actual node positions (within tolerance)
+                    const tolerance = 5;
+                    const sourceMatch = Math.abs(x1 - nodeA.x) < tolerance && Math.abs(y1 - nodeA.y) < tolerance;
+                    const targetMatch = Math.abs(x2 - nodeB.x) < tolerance && Math.abs(y2 - nodeB.y) < tolerance;
+                    
+                    this.addTestResult(testName, sourceMatch && targetMatch,
+                        `Node A: (${nodeA.x.toFixed(1)},${nodeA.y.toFixed(1)}), Edge start: (${x1},${y1}). ` +
+                        `Node B: (${nodeB.x.toFixed(1)},${nodeB.y.toFixed(1)}), Edge end: (${x2},${y2}). ` +
+                        `Source match: ${sourceMatch}, Target match: ${targetMatch}`);
+                        
+                } catch (error) {
+                    this.addTestResult(testName, false, `Error: ${error.message}`);
+                }
+            }
+
+            createTestVisualization(testName, nodes, links) {
+                const width = 600;
+                const height = 300;
+                
+                const svg = d3.create('svg')
+                    .attr('width', width)
+                    .attr('height', height)
+                    .attr('class', 'test-svg');
+                
+                const graphContent = svg.append('g').attr('class', 'graph-content');
+                
+                // Create simulation (similar to main app)
+                const simulation = d3.forceSimulation()
+                    .force('link', d3.forceLink()
+                        .id(d => d.id)
+                        .distance(100)
+                        .strength(0.3))
+                    .force('charge', d3.forceManyBody()
+                        .strength(-300)
+                        .distanceMax(300))
+                    .force('center', d3.forceCenter(width / 2, height / 2))
+                    .force('collision', d3.forceCollide()
+                        .radius(25)
+                        .strength(0.8))
+                    .alphaDecay(0.05)
+                    .velocityDecay(0.8);
+                
+                // Create copies for D3 simulation
+                const nodesCopy = nodes.map(d => ({...d}));
+                const linksCopy = links.map(d => ({...d}));
+                
+                // Create visual elements
+                const link = graphContent.append('g')
+                    .selectAll('line')
+                    .data(linksCopy)
+                    .enter().append('line')
+                    .attr('class', 'link');
+                
+                const node = graphContent.append('g')
+                    .selectAll('circle')
+                    .data(nodesCopy)
+                    .enter().append('circle')
+                    .attr('class', 'node')
+                    .attr('r', 20)
+                    .style('fill', '#69b3a2');
+                
+                const nodeLabel = graphContent.append('g')
+                    .selectAll('text')
+                    .data(nodesCopy)
+                    .enter().append('text')
+                    .attr('class', 'node-label')
+                    .text(d => d.label);
+                
+                // Update simulation with data
+                simulation.nodes(nodesCopy);
+                simulation.force('link').links(linksCopy);
+                
+                // Tick handler (similar to main app logic)
+                simulation.on('tick', () => {
+                    link
+                        .attr('x1', d => {
+                            if (typeof d.source === 'string') {
+                                const sourceNode = nodesCopy.find(n => n.id === d.source);
+                                return sourceNode ? sourceNode.x : width / 2;
+                            }
+                            return d.source && d.source.x !== undefined ? d.source.x : width / 2;
+                        })
+                        .attr('y1', d => {
+                            if (typeof d.source === 'string') {
+                                const sourceNode = nodesCopy.find(n => n.id === d.source);
+                                return sourceNode ? sourceNode.y : height / 2;
+                            }
+                            return d.source && d.source.y !== undefined ? d.source.y : height / 2;
+                        })
+                        .attr('x2', d => {
+                            if (typeof d.target === 'string') {
+                                const targetNode = nodesCopy.find(n => n.id === d.target);
+                                return targetNode ? targetNode.x : width / 2;
+                            }
+                            return d.target && d.target.x !== undefined ? d.target.x : width / 2;
+                        })
+                        .attr('y2', d => {
+                            if (typeof d.target === 'string') {
+                                const targetNode = nodesCopy.find(n => n.id === d.target);
+                                return targetNode ? targetNode.y : height / 2;
+                            }
+                            return d.target && d.target.y !== undefined ? d.target.y : height / 2;
+                        });
+                    
+                    node
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+                    
+                    nodeLabel
+                        .attr('x', d => d.x)
+                        .attr('y', d => d.y + 4);
+                });
+                
+                return { svg, simulation };
+            }
+
+            waitForSimulation(simulation, timeout = 2000) {
+                return new Promise((resolve) => {
+                    const startTime = Date.now();
+                    
+                    const check = () => {
+                        if (simulation.alpha() < 0.01 || Date.now() - startTime > timeout) {
+                            resolve();
+                        } else {
+                            setTimeout(check, 50);
+                        }
+                    };
+                    
+                    check();
+                });
+            }
+
+            addTestResult(name, passed, details) {
+                this.testResults.push({ name, passed, details });
+                console.log(`${passed ? '✅' : '❌'} ${name}: ${details}`);
+            }
+
+            displayResults() {
+                console.log(`\n📊 Test Results: ${this.testResults.filter(t => t.passed).length}/${this.testResults.length} passed`);
+                
+                this.testResults.forEach(result => {
+                    const testCase = this.testContainer.append('div')
+                        .attr('class', `test-case ${result.passed ? 'pass' : 'fail'}`);
+                    
+                    testCase.append('h3')
+                        .text(`${result.passed ? '✅' : '❌'} ${result.name}`);
+                    
+                    testCase.append('p')
+                        .text(result.details);
+                });
+                
+                // Summary
+                const summary = this.testContainer.append('div')
+                    .attr('class', 'test-case')
+                    .style('background-color', '#f0f0f0')
+                    .style('border-color', '#999');
+                
+                summary.append('h2')
+                    .text('Test Summary');
+                
+                summary.append('p')
+                    .html(`<strong>Results:</strong> ${this.testResults.filter(t => t.passed).length}/${this.testResults.length} tests passed`);
+                
+                if (this.testResults.every(t => t.passed)) {
+                    summary.append('p')
+                        .style('color', 'green')
+                        .text('🎉 All tests passed! Edge connections are working correctly.');
+                } else {
+                    summary.append('p')
+                        .style('color', 'red')
+                        .text('❌ Some tests failed. Edge connection logic needs attention.');
+                }
+            }
+        }
+
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            const tester = new EdgeConnectionTester();
+            await tester.runAllTests();
+        });
+    </script>
+</body>
+</html>

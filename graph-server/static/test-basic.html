@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic Graph Test</title>
+    <script src="https://unpkg.com/d3@7"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        .output {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        #graph-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Basic Graph Renderer Test</h1>
+        <p>Testing minimal D3.js graph with edge connections</p>
+        
+        <div class="test-section">
+            <h3>Test Cases</h3>
+            <button onclick="testTwoNodes()">Test: Two Connected Nodes</button>
+            <button onclick="testTriangle()">Test: Triangle (3 nodes)</button>
+            <button onclick="testStar()">Test: Star Pattern (4 nodes)</button>
+            <button onclick="clearGraph()">Clear Graph</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Debug Output</h3>
+            <div id="debug-output" class="output">Ready for testing...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="graph-container"></div>
+    </div>
+
+    <!-- Include the TypeScript renderer (compiled to JS) -->
+    <script>
+        // TypeScript code compiled inline for simplicity
+        class BasicGraphRenderer {
+            constructor(containerId, width = 800, height = 600) {
+                this.width = width;
+                this.height = height;
+                
+                // Create SVG
+                this.svg = d3.select(containerId)
+                    .append('svg')
+                    .attr('width', width)
+                    .attr('height', height)
+                    .style('border', '1px solid #ccc');
+                
+                // Create container for graph elements
+                this.container = this.svg.append('g').attr('class', 'graph-container');
+                
+                // Initialize simulation
+                this.initSimulation();
+            }
+
+            initSimulation() {
+                this.simulation = d3.forceSimulation()
+                    .force('link', d3.forceLink()
+                        .id(d => {
+                            this.log(`ID accessor called for: ${d.id}`);
+                            return d.id;
+                        })
+                        .distance(100)
+                        .strength(0.5))
+                    .force('charge', d3.forceManyBody().strength(-300))
+                    .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+                    .force('collision', d3.forceCollide().radius(30))
+                    .alphaDecay(0.02)
+                    .velocityDecay(0.8);
+            }
+
+            render(data) {
+                this.log(`Rendering graph with: ${data.nodes.length} nodes and ${data.links.length} links`);
+                
+                // Clear previous render
+                this.container.selectAll('*').remove();
+                
+                // Create copies of data for D3 (D3 mutates the data)
+                const nodes = data.nodes.map(d => ({ ...d }));
+                const links = data.links.map(d => ({ ...d }));
+                
+                this.log('Initial links: ' + JSON.stringify(links.map(l => ({ 
+                    id: l.id, 
+                    source: l.source, 
+                    target: l.target 
+                }))));
+
+                // Update simulation
+                this.simulation.nodes(nodes);
+                this.simulation.force('link').links(links);
+
+                // Create visual elements
+                this.createLinks(links);
+                this.createNodes(nodes);
+                
+                // Set up tick handler
+                this.setupTickHandler(nodes, links);
+                
+                // Start simulation
+                this.simulation.alpha(1).restart();
+                
+                // Log links after D3 processes them
+                setTimeout(() => {
+                    this.log('Links after D3 processing: ' + JSON.stringify(links.map(l => ({
+                        id: l.id,
+                        source: typeof l.source === 'string' ? l.source : l.source.id,
+                        target: typeof l.target === 'string' ? l.target : l.target.id,
+                        sourceType: typeof l.source,
+                        targetType: typeof l.target
+                    }))));
+                }, 100);
+            }
+
+            createLinks(links) {
+                const linkGroup = this.container.append('g').attr('class', 'links');
+                
+                linkGroup.selectAll('line')
+                    .data(links)
+                    .enter()
+                    .append('line')
+                    .attr('class', 'link')
+                    .style('stroke', d => d.color || '#999')
+                    .style('stroke-width', 2)
+                    .style('stroke-opacity', 0.6);
+            }
+
+            createNodes(nodes) {
+                const nodeGroup = this.container.append('g').attr('class', 'nodes');
+                
+                nodeGroup.selectAll('circle')
+                    .data(nodes)
+                    .enter()
+                    .append('circle')
+                    .attr('class', 'node')
+                    .attr('r', d => d.size || 20)
+                    .style('fill', d => d.color || '#69b3a2')
+                    .style('stroke', '#333')
+                    .style('stroke-width', 2)
+                    .style('cursor', 'pointer');
+
+                // Add labels
+                const labelGroup = this.container.append('g').attr('class', 'labels');
+                
+                labelGroup.selectAll('text')
+                    .data(nodes)
+                    .enter()
+                    .append('text')
+                    .attr('class', 'node-label')
+                    .text(d => d.label)
+                    .style('text-anchor', 'middle')
+                    .style('dominant-baseline', 'central')
+                    .style('font-size', '12px')
+                    .style('font-weight', 'bold')
+                    .style('pointer-events', 'none');
+            }
+
+            setupTickHandler(nodes, links) {
+                this.simulation.on('tick', () => {
+                    // Update link positions
+                    this.container.selectAll('.link')
+                        .attr('x1', d => this.getLinkX1(d, nodes))
+                        .attr('y1', d => this.getLinkY1(d, nodes))
+                        .attr('x2', d => this.getLinkX2(d, nodes))
+                        .attr('y2', d => this.getLinkY2(d, nodes));
+
+                    // Update node positions
+                    this.container.selectAll('.node')
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+
+                    // Update label positions
+                    this.container.selectAll('.node-label')
+                        .attr('x', d => d.x)
+                        .attr('y', d => d.y + 4);
+                });
+            }
+
+            getLinkX1(d, nodes) {
+                if (typeof d.source === 'string') {
+                    this.log(`WARNING: Source is still string: ${d.source}`);
+                    const sourceNode = nodes.find(n => n.id === d.source);
+                    return sourceNode?.x ?? this.width / 2;
+                }
+                return d.source.x ?? this.width / 2;
+            }
+
+            getLinkY1(d, nodes) {
+                if (typeof d.source === 'string') {
+                    const sourceNode = nodes.find(n => n.id === d.source);
+                    return sourceNode?.y ?? this.height / 2;
+                }
+                return d.source.y ?? this.height / 2;
+            }
+
+            getLinkX2(d, nodes) {
+                if (typeof d.target === 'string') {
+                    this.log(`WARNING: Target is still string: ${d.target}`);
+                    const targetNode = nodes.find(n => n.id === d.target);
+                    return targetNode?.x ?? this.width / 2;
+                }
+                return d.target.x ?? this.width / 2;
+            }
+
+            getLinkY2(d, nodes) {
+                if (typeof d.target === 'string') {
+                    const targetNode = nodes.find(n => n.id === d.target);
+                    return targetNode?.y ?? this.height / 2;
+                }
+                return d.target.y ?? this.height / 2;
+            }
+
+            log(message) {
+                console.log(message);
+                const output = document.getElementById('debug-output');
+                if (output) {
+                    output.innerHTML += message + '\n';
+                    output.scrollTop = output.scrollHeight;
+                }
+            }
+
+            destroy() {
+                if (this.simulation) {
+                    this.simulation.stop();
+                }
+                if (this.svg) {
+                    this.svg.remove();
+                }
+            }
+        }
+
+        // Global renderer instance
+        let renderer = null;
+
+        function initRenderer() {
+            if (renderer) {
+                renderer.destroy();
+            }
+            renderer = new BasicGraphRenderer('#graph-container', 800, 500);
+        }
+
+        function testTwoNodes() {
+            clearDebug();
+            initRenderer();
+            
+            const data = {
+                nodes: [
+                    { id: 'node1', label: 'Node A', color: '#ff6b6b', size: 25 },
+                    { id: 'node2', label: 'Node B', color: '#4ecdc4', size: 25 }
+                ],
+                links: [
+                    { id: 'edge1', source: 'node1', target: 'node2', color: '#333' }
+                ]
+            };
+            
+            renderer.render(data);
+        }
+
+        function testTriangle() {
+            clearDebug();
+            initRenderer();
+            
+            const data = {
+                nodes: [
+                    { id: 'a', label: 'A', color: '#ff6b6b', size: 20 },
+                    { id: 'b', label: 'B', color: '#4ecdc4', size: 20 },
+                    { id: 'c', label: 'C', color: '#45b7d1', size: 20 }
+                ],
+                links: [
+                    { id: 'ab', source: 'a', target: 'b', color: '#666' },
+                    { id: 'bc', source: 'b', target: 'c', color: '#666' },
+                    { id: 'ca', source: 'c', target: 'a', color: '#666' }
+                ]
+            };
+            
+            renderer.render(data);
+        }
+
+        function testStar() {
+            clearDebug();
+            initRenderer();
+            
+            const data = {
+                nodes: [
+                    { id: 'center', label: 'Hub', color: '#feca57', size: 30 },
+                    { id: 'n1', label: 'N1', color: '#ff6b6b', size: 15 },
+                    { id: 'n2', label: 'N2', color: '#4ecdc4', size: 15 },
+                    { id: 'n3', label: 'N3', color: '#45b7d1', size: 15 }
+                ],
+                links: [
+                    { id: 'e1', source: 'center', target: 'n1', color: '#999' },
+                    { id: 'e2', source: 'center', target: 'n2', color: '#999' },
+                    { id: 'e3', source: 'center', target: 'n3', color: '#999' }
+                ]
+            };
+            
+            renderer.render(data);
+        }
+
+        function clearGraph() {
+            clearDebug();
+            if (renderer) {
+                renderer.destroy();
+                renderer = null;
+            }
+            document.getElementById('graph-container').innerHTML = '';
+        }
+
+        function clearDebug() {
+            document.getElementById('debug-output').innerHTML = '';
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            clearDebug();
+            document.getElementById('debug-output').innerHTML = 'Page loaded. Ready for testing...\n';
+        });
+    </script>
+</body>
+</html>

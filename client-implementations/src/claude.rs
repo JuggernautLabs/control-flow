@@ -36,11 +36,11 @@ pub struct ClaudeClient {
 
 impl ClaudeClient {
     pub fn new(api_key: String) -> Self {
-        info!(model = "claude-3-sonnet-20240229", "Creating new Claude client");
+        info!(model = "claude-3-5-haiku-20241022", "Creating new Claude client");
         Self {
             api_key,
             client: Client::new(),
-            model: "claude-3-sonnet-20240229".to_string(),
+            model: "claude-3-5-haiku-20241022".to_string(),
         }
     }
     
