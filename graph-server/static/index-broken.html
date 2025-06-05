@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SATS Graph Visualization</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/d3@7"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .control-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        input, button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .danger {
+            background: #dc3545;
+        }
+        
+        .danger:hover {
+            background: #c82333;
+        }
+        
+        .graph-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        #graph {
+            width: 100%;
+            height: 600px;
+            border-radius: 8px;
+        }
+        
+        .node {
+            cursor: pointer;
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+        
+        .node-label {
+            font-size: 12px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+            fill: #333;
+        }
+        
+        .edge-label {
+            font-size: 10px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+            fill: #666;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .config-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .config-panel h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .config-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .config-item label {
+            font-weight: bold;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .config-item input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        
+        .zoom-controls {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .zoom-controls button {
+            flex: 1;
+            padding: 5px 8px;
+            font-size: 12px;
+        }
+        
+        .main-content {
+            display: flex;
+            gap: 20px;
+            position: relative;
+        }
+        
+        .graph-container {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        .side-panel {
+            width: 350px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-height: 600px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        
+        .side-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .side-panel-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-btn:hover {
+            color: #666;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .side-panel-content {
+            padding: 20px;
+        }
+        
+        .detail-section {
+            margin-bottom: 25px;
+        }
+        
+        .detail-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .detail-section h4 {
+            margin: 0 0 15px 0;
+            color: #555;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        
+        .detail-item {
+            display: flex;
+            margin-bottom: 10px;
+            align-items: flex-start;
+        }
+        
+        .detail-item label {
+            font-weight: bold;
+            min-width: 80px;
+            color: #666;
+            margin-right: 10px;
+        }
+        
+        .detail-item span {
+            flex: 1;
+            word-break: break-word;
+        }
+        
+        .color-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        
+        .metadata-value {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        
+        .connections-list {
+            space-y: 8px;
+        }
+        
+        .connection-item {
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+        
+        .connection-type {
+            background: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .connection-target {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .connection-label {
+            color: #666;
+            font-style: italic;
+        }
+        
+        .node.selected {
+            stroke: #ff6b6b !important;
+            stroke-width: 4px !important;
+        }
+        
+        .reset-config-btn {
+            width: 100%;
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .reset-config-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <h1>SATS Graph Visualization</h1>
+                <p>Interactive graph for visualizing semantic alignments between claims and artifacts</p>
+            </div>
+            
+            <div class="controls">
+                <div class="control-row">
+                    <input v-model="newNode.id" placeholder="Node ID (optional)" />
+                    <input v-model="newNode.label" placeholder="Node Label" />
+                    <input v-model="newNode.color" placeholder="Color (optional)" />
+                    <button @click="addNode" :disabled="!newNode.label">Add Node</button>
+                </div>
+                
+                <div class="control-row">
+                    <select v-model="newEdge.source">
+                        <option value="">Select Source Node</option>
+                        <option v-for="node in graph.nodes" :key="node.id" :value="node.id">
+                            {{ node.label }} ({{ node.id }})
+                        </option>
+                    </select>
+                    <select v-model="newEdge.target">
+                        <option value="">Select Target Node</option>
+                        <option v-for="node in graph.nodes" :key="node.id" :value="node.id">
+                            {{ node.label }} ({{ node.id }})
+                        </option>
+                    </select>
+                    <input v-model="newEdge.label" placeholder="Edge Label (optional)" />
+                    <button @click="addEdge" :disabled="!newEdge.source || !newEdge.target">Add Edge</button>
+                </div>
+                
+                <div class="control-row">
+                    <button @click="fetchGraph">Refresh Graph</button>
+                    <button @click="toggleAutoRefresh" :class="autoRefresh ? 'danger' : ''">
+                        {{ autoRefresh ? 'Stop Auto-Refresh' : 'Start Auto-Refresh' }}
+                    </button>
+                    <button @click="saveGraph">Save Graph</button>
+                    <button @click="loadGraph">Load Graph</button>
+                    <button @click="clearGraph" class="danger">Clear All</button>
+                    <button @click="generateSample">Generate Sample Data</button>
+                    <button @click="showConfig = !showConfig">
+                        {{ showConfig ? 'Hide Config' : 'Show Config' }}
+                    </button>
+                </div>
+                
+                <div v-if="showConfig" class="config-panel">
+                    <h4>Graph Configuration</h4>
+                    <div class="config-grid">
+                        <div class="config-item">
+                            <label>Node Size: {{ config.nodeSize }}</label>
+                            <input type="range" v-model.number="config.nodeSize" min="5" max="50" @input="updateSimulation" @change="updateSimulation" />
+                        </div>
+                        <div class="config-item">
+                            <label>Repulsion Strength: {{ config.repulsionStrength }}</label>
+                            <input type="range" v-model.number="config.repulsionStrength" min="100" max="2000" @input="updateSimulation" @change="updateSimulation" />
+                        </div>
+                        <div class="config-item">
+                            <label>Link Distance: {{ config.linkDistance }}</label>
+                            <input type="range" v-model.number="config.linkDistance" min="50" max="400" @input="updateSimulation" @change="updateSimulation" />
+                        </div>
+                        <div class="config-item">
+                            <label>Centering Strength: {{ config.centeringStrength.toFixed(2) }}</label>
+                            <input type="range" v-model.number="config.centeringStrength" min="0" max="1" step="0.05" @input="updateSimulation" @change="updateSimulation" />
+                        </div>
+                        <div class="config-item">
+                            <label>Collision Padding: {{ config.collisionPadding }}</label>
+                            <input type="range" v-model.number="config.collisionPadding" min="0" max="50" @input="updateSimulation" @change="updateSimulation" />
+                        </div>
+                        <div class="config-item">
+                            <label>Zoom: {{ zoomLevel.toFixed(2) }}x</label>
+                            <div class="zoom-controls">
+                                <button @click="zoomIn">Zoom In</button>
+                                <button @click="zoomOut">Zoom Out</button>
+                                <button @click="resetZoom">Reset</button>
+                            </div>
+                        </div>
+                        <div class="config-item">
+                            <button @click="resetConfig" class="reset-config-btn">Reset All Settings</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="graph-container">
+                    <svg id="graph"></svg>
+                </div>
+                
+                <div v-if="showNodeDetails && selectedNode" class="side-panel">
+                    <div class="side-panel-header">
+                        <h3>Node Details</h3>
+                        <button @click="showNodeDetails = false" class="close-btn">&times;</button>
+                    </div>
+                    <div class="side-panel-content">
+                        <div class="detail-section">
+                            <h4>Basic Information</h4>
+                            <div class="detail-item">
+                                <label>ID:</label>
+                                <span>{{ selectedNode.id }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Label:</label>
+                                <span>{{ selectedNode.label }}</span>
+                            </div>
+                            <div class="detail-item" v-if="selectedNode.color">
+                                <label>Color:</label>
+                                <span class="color-indicator" :style="{ backgroundColor: selectedNode.color }">{{ selectedNode.color }}</span>
+                            </div>
+                            <div class="detail-item" v-if="selectedNode.size">
+                                <label>Size:</label>
+                                <span>{{ selectedNode.size }}px</span>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section" v-if="selectedNode.metadata && Object.keys(selectedNode.metadata).length > 0">
+                            <h4>Metadata</h4>
+                            <div class="detail-item" v-for="(value, key) in selectedNode.metadata" :key="key">
+                                <label>{{ key }}:</label>
+                                <span class="metadata-value">{{ value }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section" v-if="getNodeConnections(selectedNode.id).length > 0">
+                            <h4>Connections</h4>
+                            <div class="connections-list">
+                                <div v-for="connection in getNodeConnections(selectedNode.id)" :key="connection.id" class="connection-item">
+                                    <span class="connection-type">{{ connection.type }}</span>
+                                    <span class="connection-target">{{ connection.target }}</span>
+                                    <span v-if="connection.label" class="connection-label">({{ connection.label }})</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div v-if="status" class="status" :class="statusType">
+                {{ status }}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    graph: { nodes: {}, edges: {} },
+                    newNode: { id: '', label: '', color: '' },
+                    newEdge: { source: '', target: '', label: '' },
+                    status: '',
+                    statusType: '',
+                    simulation: null,
+                    svg: null,
+                    width: 1160,
+                    height: 600,
+                    autoRefresh: false,
+                    refreshInterval: null,
+                    refreshRate: 2000,
+                    // Graph configuration options
+                    config: {
+                        nodeSize: 20,
+                        repulsionStrength: 300,
+                        linkDistance: 100,
+                        centeringStrength: 0.05,
+                        collisionPadding: 5,
+                        alphaDecay: 0.05,
+                        velocityDecay: 0.8
+                    },
+                    // Zoom functionality
+                    zoom: null,
+                    zoomLevel: 1,
+                    showConfig: false,
+                    // Node selection and metadata
+                    selectedNode: null,
+                    showNodeDetails: false
+                };
+            },
+            
+            mounted() {
+                this.initializeGraph();
+                this.fetchGraph();
+            },
+            
+            beforeUnmount() {
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
+                }
+            },
+            
+            computed: {
+                graphData() {
+                    const nodes = Object.values(this.graph.nodes || {});
+                    const edges = Object.values(this.graph.edges || {});
+                    
+                    console.log('🔄 Computed graphData - Raw graph:', this.graph);
+                    console.log('🔄 Computed graphData - Nodes:', nodes.length, nodes.map(n => ({id: n.id, label: n.label})));
+                    console.log('🔄 Computed graphData - Edges:', edges.length, edges.map(e => ({id: e.id, source: e.source, target: e.target})));
+                    
+                    return { nodes, links: edges };
+                }
+            },
+            
+            watch: {
+                graphData: {
+                    handler(newData) {
+                        this.smoothUpdateVisualization(newData);
+                    },
+                    deep: true
+                }
+            },
+            
+            methods: {
+                async apiCall(url, options = {}) {
+                    try {
+                        const response = await fetch(url, {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...options.headers
+                            },
+                            ...options
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (!data.success) {
+                            throw new Error(data.error || 'API call failed');
+                        }
+                        
+                        return data.data;
+                    } catch (error) {
+                        this.showStatus(`Error: ${error.message}`, 'error');
+                        throw error;
+                    }
+                },
+                
+                async fetchGraph() {
+                    try {
+                        const data = await this.apiCall('/api/graph');
+                        this.graph = data;
+                        this.showStatus('Graph refreshed successfully', 'success');
+                    } catch (error) {
+                        console.error('Failed to fetch graph:', error);
+                    }
+                },
+                
+                async addNode() {
+                    if (!this.newNode.label) return;
+                    
+                    try {
+                        const nodeData = {
+                            label: this.newNode.label,
+                            ...(this.newNode.id && { id: this.newNode.id }),
+                            ...(this.newNode.color && { color: this.newNode.color })
+                        };
+                        
+                        const data = await this.apiCall('/api/nodes', {
+                            method: 'POST',
+                            body: JSON.stringify(nodeData)
+                        });
+                        
+                        this.graph.nodes[data.id] = data;
+                        this.newNode = { id: '', label: '', color: '' };
+                        this.showStatus(`Node "${data.label}" added successfully`, 'success');
+                    } catch (error) {
+                        console.error('Failed to add node:', error);
+                    }
+                },
+                
+                async addEdge() {
+                    if (!this.newEdge.source || !this.newEdge.target) return;
+                    
+                    try {
+                        const edgeData = {
+                            source: this.newEdge.source,
+                            target: this.newEdge.target,
+                            ...(this.newEdge.label && { label: this.newEdge.label })
+                        };
+                        
+                        const data = await this.apiCall('/api/edges', {
+                            method: 'POST',
+                            body: JSON.stringify(edgeData)
+                        });
+                        
+                        this.graph.edges[data.id] = data;
+                        this.newEdge = { source: '', target: '', label: '' };
+                        this.showStatus(`Edge added successfully`, 'success');
+                    } catch (error) {
+                        console.error('Failed to add edge:', error);
+                    }
+                },
+                
+                async clearGraph() {
+                    if (!confirm('Are you sure you want to clear all nodes and edges?')) return;
+                    
+                    try {
+                        await this.apiCall('/api/clear', { method: 'POST' });
+                        this.graph = { nodes: {}, edges: {} };
+                        this.showStatus('Graph cleared successfully', 'success');
+                    } catch (error) {
+                        console.error('Failed to clear graph:', error);
+                    }
+                },
+                
+                async generateSample() {
+                    try {
+                        // Add sample nodes
+                        const sampleNodes = [
+                            { label: 'MFA Requirement', color: '#ff6b6b' },
+                            { label: 'TOTP Implementation', color: '#4ecdc4' },
+                            { label: 'MFA Tests', color: '#45b7d1' },
+                            { label: 'API Documentation', color: '#96ceb4' },
+                            { label: 'Security Claims', color: '#feca57' }
+                        ];
+                        
+                        const nodeIds = [];
+                        for (const nodeData of sampleNodes) {
+                            const data = await this.apiCall('/api/nodes', {
+                                method: 'POST',
+                                body: JSON.stringify(nodeData)
+                            });
+                            this.graph.nodes[data.id] = data;
+                            nodeIds.push(data.id);
+                        }
+                        
+                        // Add sample edges
+                        const sampleEdges = [
+                            { source: nodeIds[1], target: nodeIds[0], label: 'implements' },
+                            { source: nodeIds[2], target: nodeIds[1], label: 'tests' },
+                            { source: nodeIds[3], target: nodeIds[0], label: 'documents' },
+                            { source: nodeIds[4], target: nodeIds[1], label: 'validates' }
+                        ];
+                        
+                        for (const edgeData of sampleEdges) {
+                            const data = await this.apiCall('/api/edges', {
+                                method: 'POST',
+                                body: JSON.stringify(edgeData)
+                            });
+                            this.graph.edges[data.id] = data;
+                        }
+                        
+                        this.showStatus('Sample data generated successfully', 'success');
+                    } catch (error) {
+                        console.error('Failed to generate sample data:', error);
+                    }
+                },
+                
+                initializeGraph() {
+                    this.svg = d3.select('#graph')
+                        .attr('width', this.width)
+                        .attr('height', this.height);
+                    
+                    // Create zoom behavior
+                    this.zoom = d3.zoom()
+                        .scaleExtent([0.1, 10])
+                        .on('zoom', (event) => {
+                            this.zoomLevel = event.transform.k;
+                            this.svg.select('.graph-content')
+                                .attr('transform', event.transform);
+                        });
+                    
+                    // Apply zoom to SVG
+                    this.svg.call(this.zoom);
+                    
+                    // Create a group for graph content that will be transformed by zoom
+                    this.svg.append('g').attr('class', 'graph-content');
+                    
+                    this.createSimulation();
+                },
+                
+                createSimulation() {
+                    this.simulation = d3.forceSimulation()
+                        .force('link', d3.forceLink()
+                            .id(d => {
+                                console.log('ID accessor called with:', d);
+                                return d.id;
+                            })
+                            .distance(this.config.linkDistance)
+                            .strength(0.3))
+                        .force('charge', d3.forceManyBody()
+                            .strength(-this.config.repulsionStrength)
+                            .distanceMax(300))
+                        .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+                        .force('collision', d3.forceCollide()
+                            .radius(d => (d.size || this.config.nodeSize) + this.config.collisionPadding)
+                            .strength(0.8))
+                        .force('x', d3.forceX(this.width / 2).strength(this.config.centeringStrength))
+                        .force('y', d3.forceY(this.height / 2).strength(this.config.centeringStrength))
+                        .alphaDecay(this.config.alphaDecay)
+                        .velocityDecay(this.config.velocityDecay)
+                        .alphaMin(0.001);
+                },
+                
+                updateVisualization(graphData) {
+                    if (!this.svg || !this.simulation) return;
+                    
+                    // Validate input data
+                    if (!graphData || !Array.isArray(graphData.nodes) || !Array.isArray(graphData.links)) {
+                        console.warn('Invalid data passed to updateVisualization:', graphData);
+                        return;
+                    }
+                    
+                    const graphContent = this.svg.select('.graph-content');
+                    
+                    // Clear previous visualization from graph content
+                    graphContent.selectAll('*').remove();
+                    
+                    if (graphData.nodes.length === 0) return;
+                    
+                    // Create a copy of nodes and links for D3 simulation
+                    const nodes = graphData.nodes.map(d => ({
+                        ...d,
+                        x: d.x || this.width / 2 + (Math.random() - 0.5) * 100,
+                        y: d.y || this.height / 2 + (Math.random() - 0.5) * 100
+                    }));
+                    
+                    const links = graphData.links.map(d => ({...d}));
+                    
+                    // Create links
+                    const link = graphContent.append('g')
+                        .selectAll('line')
+                        .data(links)
+                        .enter().append('line')
+                        .attr('class', 'link')
+                        .style('stroke', d => d.color || '#999')
+                        .style('stroke-width', d => Math.max(1, (d.weight || 0.5) * 4));
+                    
+                    // Create edge labels
+                    const edgeLabel = graphContent.append('g')
+                        .selectAll('text')
+                        .data(links.filter(d => d.label))
+                        .enter().append('text')
+                        .attr('class', 'edge-label')
+                        .text(d => d.label);
+                    
+                    // Create nodes
+                    const node = graphContent.append('g')
+                        .selectAll('circle')
+                        .data(nodes)
+                        .enter().append('circle')
+                        .attr('class', 'node')
+                        .attr('r', d => d.size || this.config.nodeSize)
+                        .style('fill', d => d.color || '#69b3a2')
+                        .style('stroke', '#333')
+                        .style('stroke-width', 2)
+                        .style('cursor', 'pointer')
+                        .on('click', (event, d) => this.selectNode(d))
+                        .call(d3.drag()
+                            .on('start', (event, d) => this.dragstarted(event, d))
+                            .on('drag', (event, d) => this.dragged(event, d))
+                            .on('end', (event, d) => this.dragended(event, d)));
+                    
+                    // Create node labels
+                    const nodeLabel = graphContent.append('g')
+                        .selectAll('text')
+                        .data(nodes)
+                        .enter().append('text')
+                        .attr('class', 'node-label')
+                        .text(d => this.truncateLabel(d.label, 20))
+                        .style('font-size', '10px');
+                    
+                    // Debug the data structures
+                    console.log('📊 updateVisualization called with:', graphData);
+                    console.log('📊 Processed nodes:', nodes.length, nodes.map(n => ({ id: n.id, label: n.label })));
+                    console.log('📊 Processed links:', links.length, links.map(l => ({ id: l.id, source: l.source, target: l.target })));
+                    
+                    // Update simulation with new data
+                    this.simulation.nodes(nodes);
+                    this.simulation.force('link').links(links);
+                    
+                    // Debug links after force application - wait a bit for D3 to process
+                    setTimeout(() => {
+                        console.log('📊 Links after D3 processing:', links.slice(0, 3).map(l => ({ 
+                            id: l.id, 
+                            source: typeof l.source === 'string' ? l.source : l.source.id,
+                            target: typeof l.target === 'string' ? l.target : l.target.id,
+                            sourceType: typeof l.source,
+                            targetType: typeof l.target
+                        })));
+                    }, 100);
+                    
+                    // Set up tick handler - Store references to avoid re-selection and scope issues
+                    const linkElements = link;
+                    const nodeElements = node;
+                    const labelElements = nodeLabel;
+                    const centerX = this.width / 2;
+                    const centerY = this.height / 2;
+                    
+                    let tickCount = 0;
+                    this.simulation.on('tick', () => {
+                        tickCount++;
+                        
+                        // Update edges - use the actual node data that D3 is updating
+                        linkElements.each(function(d) {
+                            const linkEl = d3.select(this);
+                            
+                            // Get source coordinates
+                            let sx, sy;
+                            if (typeof d.source === 'object' && d.source.x !== undefined) {
+                                sx = d.source.x;
+                                sy = d.source.y;
+                            } else {
+                                // Fallback - find node by ID
+                                const sourceNode = nodes.find(n => n.id === (typeof d.source === 'string' ? d.source : d.source.id));
+                                sx = sourceNode ? sourceNode.x : centerX;
+                                sy = sourceNode ? sourceNode.y : centerY;
+                                if (tickCount <= 2) console.warn('⚠️ Using fallback for source:', d.source);
+                            }
+                            
+                            // Get target coordinates  
+                            let tx, ty;
+                            if (typeof d.target === 'object' && d.target.x !== undefined) {
+                                tx = d.target.x;
+                                ty = d.target.y;
+                            } else {
+                                // Fallback - find node by ID
+                                const targetNode = nodes.find(n => n.id === (typeof d.target === 'string' ? d.target : d.target.id));
+                                tx = targetNode ? targetNode.x : centerX;
+                                ty = targetNode ? targetNode.y : centerY;
+                                if (tickCount <= 2) console.warn('⚠️ Using fallback for target:', d.target);
+                            }
+                            
+                            // Update edge position
+                            linkEl.attr('x1', sx).attr('y1', sy).attr('x2', tx).attr('y2', ty);
+                            
+                            if (tickCount <= 3) {
+                                console.log(`🎯 Tick ${tickCount} - Edge ${d.id}: (${sx.toFixed(1)},${sy.toFixed(1)}) → (${tx.toFixed(1)},${ty.toFixed(1)})`);
+                            }
+                        });
+                        
+                        // Update edge labels (if any)
+                        edgeLabel.each(function(d) {
+                            const labelEl = d3.select(this);
+                            
+                            // Get source and target positions
+                            const sx = typeof d.source === 'object' ? d.source.x : nodes.find(n => n.id === d.source)?.x || centerX;
+                            const sy = typeof d.source === 'object' ? d.source.y : nodes.find(n => n.id === d.source)?.y || centerY;
+                            const tx = typeof d.target === 'object' ? d.target.x : nodes.find(n => n.id === d.target)?.x || centerX;
+                            const ty = typeof d.target === 'object' ? d.target.y : nodes.find(n => n.id === d.target)?.y || centerY;
+                            
+                            // Position label at midpoint
+                            labelEl.attr('x', (sx + tx) / 2).attr('y', (sy + ty) / 2);
+                        });
+                        
+                        // Update nodes
+                        nodeElements
+                            .attr('cx', d => d.x)
+                            .attr('cy', d => d.y);
+                        
+                        // Update node labels
+                        labelElements
+                            .attr('x', d => d.x)
+                            .attr('y', d => d.y + 4);
+                    });
+                    
+                    // Restart simulation with higher alpha for new nodes
+                    this.simulation.alpha(0.8).restart();
+                },
+                
+                dragstarted(event, d) {
+                    if (!event.active) this.simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                },
+                
+                dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                },
+                
+                dragended(event, d) {
+                    if (!event.active) this.simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                },
+                
+                truncateLabel(label, maxLength) {
+                    if (label.length <= maxLength) return label;
+                    return label.substring(0, maxLength) + '...';
+                },
+                
+                toggleAutoRefresh() {
+                    this.autoRefresh = !this.autoRefresh;
+                    
+                    if (this.autoRefresh) {
+                        this.refreshInterval = setInterval(() => {
+                            this.fetchGraph();
+                        }, this.refreshRate);
+                        this.showStatus('Auto-refresh started (every 2 seconds)', 'success');
+                    } else {
+                        if (this.refreshInterval) {
+                            clearInterval(this.refreshInterval);
+                            this.refreshInterval = null;
+                        }
+                        this.showStatus('Auto-refresh stopped', 'success');
+                    }
+                },
+                
+                async saveGraph() {
+                    try {
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                        const filename = `graph_${timestamp}.json`;
+                        const dataStr = JSON.stringify(this.graph, null, 2);
+                        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                        
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(dataBlob);
+                        link.download = filename;
+                        link.click();
+                        
+                        this.showStatus(`Graph saved as ${filename}`, 'success');
+                    } catch (error) {
+                        this.showStatus(`Failed to save graph: ${error.message}`, 'error');
+                    }
+                },
+                
+                loadGraph() {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = async (event) => {
+                        const file = event.target.files[0];
+                        if (!file) return;
+                        
+                        try {
+                            const text = await file.text();
+                            const loadedGraph = JSON.parse(text);
+                            
+                            // Validate the loaded graph structure
+                            if (!loadedGraph.nodes || !loadedGraph.edges) {
+                                throw new Error('Invalid graph format');
+                            }
+                            
+                            // Clear current graph and load new one
+                            await this.clearGraph();
+                            
+                            // Add nodes first
+                            for (const [nodeId, node] of Object.entries(loadedGraph.nodes)) {
+                                try {
+                                    const nodeData = {
+                                        id: node.id,
+                                        label: node.label,
+                                        color: node.color,
+                                        size: node.size,
+                                        metadata: node.metadata
+                                    };
+                                    await this.apiCall('/api/nodes', {
+                                        method: 'POST',
+                                        body: JSON.stringify(nodeData)
+                                    });
+                                } catch (e) {
+                                    console.warn(`Failed to load node ${nodeId}:`, e);
+                                }
+                            }
+                            
+                            // Then add edges
+                            for (const [edgeId, edge] of Object.entries(loadedGraph.edges)) {
+                                try {
+                                    const edgeData = {
+                                        id: edge.id,
+                                        source: edge.source,
+                                        target: edge.target,
+                                        label: edge.label,
+                                        weight: edge.weight,
+                                        color: edge.color,
+                                        metadata: edge.metadata
+                                    };
+                                    await this.apiCall('/api/edges', {
+                                        method: 'POST',
+                                        body: JSON.stringify(edgeData)
+                                    });
+                                } catch (e) {
+                                    console.warn(`Failed to load edge ${edgeId}:`, e);
+                                }
+                            }
+                            
+                            await this.fetchGraph();
+                            this.showStatus(`Graph loaded from ${file.name}`, 'success');
+                        } catch (error) {
+                            this.showStatus(`Failed to load graph: ${error.message}`, 'error');
+                        }
+                    };
+                    input.click();
+                },
+                
+                updateSimulation() {
+                    if (!this.simulation) {
+                        console.warn('Simulation not initialized, skipping update');
+                        return;
+                    }
+                    
+                    console.log('Updating simulation with config:', this.config);
+                    
+                    // Update force parameters - need to access the force objects properly
+                    const linkForce = this.simulation.force('link');
+                    if (linkForce) {
+                        linkForce.distance(this.config.linkDistance).strength(0.5);
+                    }
+                    
+                    const chargeForce = this.simulation.force('charge');
+                    if (chargeForce) {
+                        chargeForce.strength(-this.config.repulsionStrength).distanceMax(400);
+                    }
+                    
+                    const collisionForce = this.simulation.force('collision');
+                    if (collisionForce) {
+                        collisionForce.radius(d => (d.size || this.config.nodeSize) + this.config.collisionPadding);
+                    }
+                    
+                    const xForce = this.simulation.force('x');
+                    if (xForce) {
+                        xForce.strength(this.config.centeringStrength);
+                    }
+                    
+                    const yForce = this.simulation.force('y');
+                    if (yForce) {
+                        yForce.strength(this.config.centeringStrength);
+                    }
+                    
+                    // Update simulation parameters
+                    this.simulation
+                        .alphaDecay(this.config.alphaDecay)
+                        .velocityDecay(this.config.velocityDecay);
+                    
+                    // Update node sizes in the visualization immediately
+                    this.svg.select('.graph-content')
+                        .selectAll('.node')
+                        .transition()
+                        .duration(200)
+                        .attr('r', d => d.size || this.config.nodeSize);
+                    
+                    // Restart simulation with the new parameters
+                    this.simulation.alpha(0.5).restart();
+                },
+                
+                zoomIn() {
+                    this.svg.transition().duration(300).call(
+                        this.zoom.scaleBy, 1.5
+                    );
+                },
+                
+                zoomOut() {
+                    this.svg.transition().duration(300).call(
+                        this.zoom.scaleBy, 1 / 1.5
+                    );
+                },
+                
+                resetZoom() {
+                    this.svg.transition().duration(500).call(
+                        this.zoom.transform,
+                        d3.zoomIdentity
+                    );
+                },
+                
+                resetConfig() {
+                    // Reset to default values
+                    this.config = {
+                        nodeSize: 20,
+                        repulsionStrength: 300,
+                        linkDistance: 100,
+                        centeringStrength: 0.05,
+                        collisionPadding: 5,
+                        alphaDecay: 0.05,
+                        velocityDecay: 0.8
+                    };
+                    
+                    // Apply the reset configuration
+                    this.updateSimulation();
+                    this.showStatus('Configuration reset to defaults', 'success');
+                },
+                
+                smoothUpdateVisualization(newGraphData) {
+                    if (!this.svg || !this.simulation) {
+                        this.updateVisualization(newGraphData);
+                        return;
+                    }
+                    
+                    // Check if newGraphData is valid - it comes from computed property
+                    if (!newGraphData || !Array.isArray(newGraphData.nodes) || !Array.isArray(newGraphData.links)) {
+                        console.warn('Invalid graph data received:', newGraphData);
+                        return;
+                    }
+                    
+                    const graphContent = this.svg.select('.graph-content');
+                    
+                    // newGraphData already has arrays from computed property
+                    const newNodes = newGraphData.nodes;
+                    const newLinks = newGraphData.links;
+                    
+                    // Get current nodes and links
+                    const currentNodes = this.simulation.nodes();
+                    const currentLinks = this.simulation.force('link').links();
+                    
+                    // Create maps for quick lookup
+                    const currentNodeMap = new Map(currentNodes.map(d => [d.id, d]));
+                    const newNodeMap = new Map(newNodes.map(d => [d.id, d]));
+                    
+                    // Update existing nodes, add new ones, preserve positions
+                    const updatedNodes = newNodes.map(newNode => {
+                        const existing = currentNodeMap.get(newNode.id);
+                        if (existing) {
+                            // Keep position and velocity, update other properties
+                            return {
+                                ...newNode,
+                                x: existing.x,
+                                y: existing.y,
+                                vx: existing.vx || 0,
+                                vy: existing.vy || 0
+                            };
+                        } else {
+                            // New node - place near center with slight randomization
+                            return {
+                                ...newNode,
+                                x: this.width / 2 + (Math.random() - 0.5) * 100,
+                                y: this.height / 2 + (Math.random() - 0.5) * 100
+                            };
+                        }
+                    });
+                    
+                    // Update simulation data
+                    this.simulation.nodes(updatedNodes);
+                    this.simulation.force('link').links(newLinks);
+                    
+                    // Update visual elements
+                    this.updateVisualElements(graphContent, updatedNodes, newLinks);
+                    
+                    // Very gently restart simulation for new nodes
+                    this.simulation.alpha(0.05).restart();
+                },
+                
+                updateVisualElements(graphContent, nodes, links) {
+                    // Ensure we have the proper group structure
+                    let linkGroup = graphContent.select('.links-group');
+                    if (linkGroup.empty()) {
+                        linkGroup = graphContent.append('g').attr('class', 'links-group');
+                    }
+                    
+                    let nodeGroup = graphContent.select('.nodes-group');
+                    if (nodeGroup.empty()) {
+                        nodeGroup = graphContent.append('g').attr('class', 'nodes-group');
+                    }
+                    
+                    let labelGroup = graphContent.select('.labels-group');
+                    if (labelGroup.empty()) {
+                        labelGroup = graphContent.append('g').attr('class', 'labels-group');
+                    }
+                    
+                    // Update links
+                    const linkSelection = linkGroup
+                        .selectAll('line')
+                        .data(links, d => d.id);
+                    
+                    linkSelection.exit().remove();
+                    
+                    const linkEnter = linkSelection.enter()
+                        .append('line')
+                        .attr('class', 'link');
+                    
+                    linkSelection.merge(linkEnter)
+                        .style('stroke', d => d.color || '#999')
+                        .style('stroke-width', d => Math.max(1, (d.weight || 0.5) * 4));
+                    
+                    // Update edge labels
+                    const edgeLabelSelection = labelGroup.selectAll('.edge-label')
+                        .data(links.filter(d => d.label), d => d.id);
+                    
+                    edgeLabelSelection.exit().remove();
+                    
+                    const edgeLabelEnter = edgeLabelSelection.enter()
+                        .append('text')
+                        .attr('class', 'edge-label');
+                    
+                    edgeLabelSelection.merge(edgeLabelEnter)
+                        .text(d => d.label);
+                    
+                    // Update nodes
+                    const nodeSelection = nodeGroup.selectAll('.node')
+                        .data(nodes, d => d.id);
+                    
+                    nodeSelection.exit()
+                        .transition().duration(300)
+                        .style('opacity', 0)
+                        .remove();
+                    
+                    const nodeEnter = nodeSelection.enter()
+                        .append('circle')
+                        .attr('class', 'node')
+                        .style('cursor', 'pointer')
+                        .on('click', (event, d) => this.selectNode(d))
+                        .call(d3.drag()
+                            .on('start', (event, d) => this.dragstarted(event, d))
+                            .on('drag', (event, d) => this.dragged(event, d))
+                            .on('end', (event, d) => this.dragended(event, d)));
+                    
+                    nodeSelection.merge(nodeEnter)
+                        .attr('r', d => d.size || this.config.nodeSize)
+                        .style('fill', d => d.color || '#69b3a2')
+                        .style('stroke', '#333')
+                        .style('stroke-width', 2);
+                    
+                    // Update node labels
+                    const nodeLabelSelection = labelGroup.selectAll('.node-label')
+                        .data(nodes, d => d.id);
+                    
+                    nodeLabelSelection.exit().remove();
+                    
+                    const nodeLabelEnter = nodeLabelSelection.enter()
+                        .append('text')
+                        .attr('class', 'node-label')
+                        .style('font-size', '10px');
+                    
+                    nodeLabelSelection.merge(nodeLabelEnter)
+                        .text(d => this.truncateLabel(d.label, 20));
+                    
+                    // Update tick handler with new selections
+                    const allLinks = linkGroup.selectAll('line');
+                    const allEdgeLabels = labelGroup.selectAll('.edge-label');
+                    const allNodes = nodeGroup.selectAll('.node');
+                    const allNodeLabels = labelGroup.selectAll('.node-label');
+                    
+                    const smoothCenterX = this.width / 2;
+                    const smoothCenterY = this.height / 2;
+                    
+                    this.simulation.on('tick', () => {
+                        // Update edges with improved logic
+                        allLinks.each(function(d) {
+                            const linkEl = d3.select(this);
+                            
+                            // Get source coordinates
+                            let sx, sy;
+                            if (typeof d.source === 'object' && d.source.x !== undefined) {
+                                sx = d.source.x;
+                                sy = d.source.y;
+                            } else {
+                                const sourceNode = updatedNodes.find(n => n.id === (typeof d.source === 'string' ? d.source : d.source.id));
+                                sx = sourceNode ? sourceNode.x : smoothCenterX;
+                                sy = sourceNode ? sourceNode.y : smoothCenterY;
+                            }
+                            
+                            // Get target coordinates  
+                            let tx, ty;
+                            if (typeof d.target === 'object' && d.target.x !== undefined) {
+                                tx = d.target.x;
+                                ty = d.target.y;
+                            } else {
+                                const targetNode = updatedNodes.find(n => n.id === (typeof d.target === 'string' ? d.target : d.target.id));
+                                tx = targetNode ? targetNode.x : smoothCenterX;
+                                ty = targetNode ? targetNode.y : smoothCenterY;
+                            }
+                            
+                            linkEl.attr('x1', sx).attr('y1', sy).attr('x2', tx).attr('y2', ty);
+                        });
+                        
+                        allEdgeLabels.each(function(d) {
+                            const labelEl = d3.select(this);
+                            
+                            // Get source and target positions
+                            const sx = typeof d.source === 'object' ? d.source.x : updatedNodes.find(n => n.id === d.source)?.x || smoothCenterX;
+                            const sy = typeof d.source === 'object' ? d.source.y : updatedNodes.find(n => n.id === d.source)?.y || smoothCenterY;
+                            const tx = typeof d.target === 'object' ? d.target.x : updatedNodes.find(n => n.id === d.target)?.x || smoothCenterX;
+                            const ty = typeof d.target === 'object' ? d.target.y : updatedNodes.find(n => n.id === d.target)?.y || smoothCenterY;
+                            
+                            // Position label at midpoint
+                            labelEl.attr('x', (sx + tx) / 2).attr('y', (sy + ty) / 2);
+                        });
+                        
+                        allNodes
+                            .attr('cx', d => d.x)
+                            .attr('cy', d => d.y);
+                        
+                        allNodeLabels
+                            .attr('x', d => d.x)
+                            .attr('y', d => d.y + 4);
+                    });
+                },
+                
+                selectNode(nodeData) {
+                    // Update selected node
+                    this.selectedNode = nodeData;
+                    this.showNodeDetails = true;
+                    
+                    // Update visual selection
+                    this.svg.selectAll('.node')
+                        .classed('selected', d => d.id === nodeData.id);
+                    
+                    this.showStatus(`Selected node: ${nodeData.label}`, 'success');
+                },
+                
+                getNodeConnections(nodeId) {
+                    const connections = [];
+                    const edges = Object.values(this.graph.edges || {});
+                    const nodes = this.graph.nodes || {};
+                    
+                    edges.forEach(edge => {
+                        if (edge.source === nodeId) {
+                            const targetNode = nodes[edge.target];
+                            connections.push({
+                                id: edge.id,
+                                type: 'outgoing',
+                                target: targetNode ? targetNode.label : edge.target,
+                                label: edge.label,
+                                weight: edge.weight
+                            });
+                        } else if (edge.target === nodeId) {
+                            const sourceNode = nodes[edge.source];
+                            connections.push({
+                                id: edge.id,
+                                type: 'incoming',
+                                target: sourceNode ? sourceNode.label : edge.source,
+                                label: edge.label,
+                                weight: edge.weight
+                            });
+                        }
+                    });
+                    
+                    return connections;
+                },
+                
+                showStatus(message, type) {
+                    this.status = message;
+                    this.statusType = type;
+                    setTimeout(() => {
+                        this.status = '';
+                        this.statusType = '';
+                    }, 5000);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

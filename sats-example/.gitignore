@@ -1,0 +1,15 @@
+# Environment variables (contains secrets)
+.env
+
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db

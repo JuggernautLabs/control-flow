@@ -1,0 +1,1327 @@
+{
+  "artifacts": [
+    {
+      "id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "artifact_type": "Ticket",
+      "content": "\n# Feature Request: Multi-Factor Authentication (MFA)\n\n## Description\nWe need to implement multi-factor authentication to enhance security for user accounts. This should support both SMS and authenticator app-based TOTP.\n\n## Acceptance Criteria\n- [ ] Users can enable/disable MFA in their account settings\n- [ ] Support SMS-based verification codes\n- [ ] Support TOTP authenticator apps (Google Authenticator, Authy, etc.)\n- [ ] Backup codes generation for account recovery\n- [ ] Rate limiting on MFA verification attempts\n- [ ] Audit logging for all MFA events\n- [ ] Graceful fallback if MFA service is unavailable\n\n## Technical Requirements\n- Must integrate with existing JWT authentication\n- Should work with current user session management\n- Need secure storage for MFA secrets\n- Rate limiting: max 5 attempts per 5 minutes\n- Backup codes: 10 single-use codes per user\n\n## Security Considerations\n- MFA secrets must be encrypted at rest\n- SMS codes expire after 5 minutes\n- TOTP codes have 30-second windows\n- Failed attempts should be logged and monitored\n",
+      "location": {
+        "Ticket": {
+          "system": "GitHub",
+          "id": "1247"
+        }
+      },
+      "created_at": "2025-05-22T17:16:24.303350Z",
+      "author": "security-team@company.com",
+      "metadata": {
+        "priority": "high",
+        "labels": "security,authentication"
+      }
+    },
+    {
+      "id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "artifact_type": "Code",
+      "content": "\nuse crypto::{AES256, HMAC_SHA256};\nuse std::time::{SystemTime, UNIX_EPOCH};\n\n/// Multi-Factor Authentication manager\npub struct MfaManager {\n    secret_key: Vec<u8>,\n    sms_client: SmsClient,\n    rate_limiter: RateLimiter,\n}\n\nimpl MfaManager {\n    /// Generate TOTP secret for a user\n    pub fn generate_totp_secret(&self, user_id: &str) -> Result<String, MfaError> {\n        info!(\"Generating TOTP secret for user: {}\", user_id);\n        \n        let secret = self.generate_random_secret(32)?;\n        let encrypted_secret = self.encrypt_secret(&secret)?;\n        \n        // Store encrypted secret in database\n        self.store_user_secret(user_id, &encrypted_secret)?;\n        \n        Ok(base32::encode(&secret))\n    }\n\n    /// Verify TOTP code from authenticator app  \n    pub fn verify_totp(&self, user_id: &str, code: &str) -> Result<bool, MfaError> {\n        info!(\"Verifying TOTP code for user: {}\", user_id);\n        \n        // Check rate limiting first\n        if !self.rate_limiter.allow_request(user_id) {\n            warn!(\"Rate limit exceeded for user: {}\", user_id);\n            return Err(MfaError::RateLimitExceeded);\n        }\n\n        let encrypted_secret = self.get_user_secret(user_id)?;\n        let secret = self.decrypt_secret(&encrypted_secret)?;\n        \n        // TOTP verification with 30-second window tolerance\n        let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?;\n        let time_steps = current_time.as_secs() / 30;\n        \n        // Check current window and ±1 window for clock skew\n        for step in [time_steps.wrapping_sub(1), time_steps, time_steps + 1] {\n            if self.generate_totp(&secret, step)? == code {\n                self.log_mfa_event(user_id, \"totp_success\");\n                return Ok(true);\n            }\n        }\n        \n        self.log_mfa_event(user_id, \"totp_failure\");\n        Ok(false)\n    }\n\n    /// Send SMS verification code\n    pub async fn send_sms_code(&self, user_id: &str, phone: &str) -> Result<(), MfaError> {\n        info!(\"Sending SMS code to user: {}\", user_id);\n        \n        if !self.rate_limiter.allow_request(user_id) {\n            return Err(MfaError::RateLimitExceeded);\n        }\n\n        let code = self.generate_sms_code();\n        let expires_at = chrono::Utc::now() + chrono::Duration::minutes(5);\n        \n        // Store code with expiration\n        self.store_sms_code(user_id, &code, expires_at)?;\n        \n        // Send via SMS service\n        self.sms_client.send_message(phone, &format!(\"Your verification code: {}\", code)).await?;\n        \n        self.log_mfa_event(user_id, \"sms_sent\");\n        Ok(())\n    }\n\n    /// Generate backup recovery codes\n    pub fn generate_backup_codes(&self, user_id: &str) -> Result<Vec<String>, MfaError> {\n        info!(\"Generating backup codes for user: {}\", user_id);\n        \n        let mut codes = Vec::new();\n        for _ in 0..10 {\n            codes.push(self.generate_backup_code()?);\n        }\n        \n        // Store hashed versions of codes\n        let hashed_codes: Vec<_> = codes.iter()\n            .map(|code| self.hash_backup_code(code))\n            .collect::<Result<Vec<_>, _>>()?;\n        \n        self.store_backup_codes(user_id, &hashed_codes)?;\n        self.log_mfa_event(user_id, \"backup_codes_generated\");\n        \n        Ok(codes)\n    }\n}\n",
+      "location": {
+        "File": {
+          "path": "src/auth/mfa.rs",
+          "line_range": [
+            1,
+            85
+          ]
+        }
+      },
+      "created_at": "2025-05-29T17:16:24.303740Z",
+      "author": "alice@company.com",
+      "metadata": {}
+    },
+    {
+      "id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "artifact_type": "Test",
+      "content": "\n#[cfg(test)]\nmod mfa_tests {\n    use super::*;\n    use tokio_test;\n\n    #[tokio::test]\n    async fn test_totp_generation_and_verification() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_123\";\n        \n        // Generate TOTP secret\n        let secret = mfa.generate_totp_secret(user_id).unwrap();\n        assert_eq!(secret.len(), 52); // Base32 encoded 32-byte secret\n        \n        // Generate a TOTP code using the secret\n        let totp_code = generate_test_totp(&secret);\n        \n        // Verify the code\n        let result = mfa.verify_totp(user_id, &totp_code).unwrap();\n        assert!(result, \"TOTP verification should succeed\");\n        \n        // Test invalid code\n        let invalid_result = mfa.verify_totp(user_id, \"000000\").unwrap();\n        assert!(!invalid_result, \"Invalid TOTP should fail\");\n    }\n\n    #[tokio::test]\n    async fn test_sms_code_flow() {\n        let mut mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_456\";\n        let phone = \"+1234567890\";\n        \n        // Send SMS code\n        mfa.send_sms_code(user_id, phone).await.unwrap();\n        \n        // Verify the code was stored\n        let stored_code = mfa.get_stored_sms_code(user_id).unwrap();\n        assert!(stored_code.is_some());\n        \n        // Test verification\n        let code = stored_code.unwrap();\n        let result = mfa.verify_sms_code(user_id, &code).unwrap();\n        assert!(result, \"SMS code verification should succeed\");\n        \n        // Code should be consumed after use\n        let second_result = mfa.verify_sms_code(user_id, &code).unwrap();\n        assert!(!second_result, \"SMS code should only work once\");\n    }\n\n    #[tokio::test]\n    async fn test_rate_limiting() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_789\";\n        \n        // Make 5 failed attempts (should succeed)\n        for i in 0..5 {\n            let result = mfa.verify_totp(user_id, \"000000\");\n            assert!(result.is_ok(), \"Attempt {} should be allowed\", i + 1);\n        }\n        \n        // 6th attempt should be rate limited\n        let result = mfa.verify_totp(user_id, \"000000\");\n        assert!(matches!(result, Err(MfaError::RateLimitExceeded)));\n    }\n\n    #[test]\n    fn test_backup_codes_generation() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_backup\";\n        \n        let codes = mfa.generate_backup_codes(user_id).unwrap();\n        \n        // Should generate exactly 10 codes\n        assert_eq!(codes.len(), 10);\n        \n        // Each code should be unique\n        let unique_codes: std::collections::HashSet<_> = codes.iter().collect();\n        assert_eq!(unique_codes.len(), 10);\n        \n        // Codes should be 8 characters long\n        for code in &codes {\n            assert_eq!(code.len(), 8);\n        }\n    }\n\n    #[tokio::test]\n    async fn test_mfa_audit_logging() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_audit\";\n        \n        // Generate secret (should log event)\n        mfa.generate_totp_secret(user_id).unwrap();\n        \n        // Failed verification (should log event)\n        mfa.verify_totp(user_id, \"000000\").unwrap();\n        \n        // Check audit logs\n        let logs = mfa.get_audit_logs(user_id);\n        assert!(logs.len() >= 2);\n        assert!(logs.iter().any(|log| log.event_type == \"totp_secret_generated\"));\n        assert!(logs.iter().any(|log| log.event_type == \"totp_failure\"));\n    }\n\n    // TODO: Test SMS service failover\n    // TODO: Test encryption/decryption of secrets\n    // TODO: Test backup code verification and consumption\n    // TODO: Test concurrent rate limiting\n}\n",
+      "location": {
+        "File": {
+          "path": "tests/auth/test_mfa.rs",
+          "line_range": [
+            1,
+            95
+          ]
+        }
+      },
+      "created_at": "2025-05-31T17:16:24.303746Z",
+      "author": "alice@company.com",
+      "metadata": {}
+    },
+    {
+      "id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "artifact_type": "Documentation",
+      "content": "\n# Multi-Factor Authentication API\n\n## Overview\n\nOur MFA system provides additional security for user accounts through SMS and TOTP-based verification.\n\n## Setup Endpoints\n\n### POST /api/v1/mfa/totp/setup\nGenerates a TOTP secret for the authenticated user.\n\n**Response:**\n```json\n{\n  \"secret\": \"JBSWY3DPEHPK3PXP\",\n  \"qr_code\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...\",\n  \"backup_codes\": [\"12345678\", \"87654321\", ...]\n}\n```\n\n### POST /api/v1/mfa/sms/setup\nEnables SMS-based MFA for a phone number.\n\n**Request:**\n```json\n{\n  \"phone_number\": \"+1234567890\"\n}\n```\n\n## Verification Endpoints\n\n### POST /api/v1/mfa/verify\nVerifies an MFA code during login.\n\n**Request:**\n```json\n{\n  \"type\": \"totp\",  // or \"sms\" or \"backup\"\n  \"code\": \"123456\",\n  \"user_id\": \"user123\"\n}\n```\n\n**Response:**\n```json\n{\n  \"valid\": true,\n  \"remaining_attempts\": 4\n}\n```\n\n## Rate Limiting\n\n- **TOTP/SMS verification**: 5 attempts per 5 minutes per user\n- **SMS sending**: 3 SMS per hour per phone number\n- **Backup codes**: 3 attempts per hour per user\n\nRate limit exceeded responses return HTTP 429 with:\n```json\n{\n  \"error\": \"rate_limit_exceeded\",\n  \"retry_after\": 300\n}\n```\n\n## Security Features\n\n✅ **Implemented:**\n- TOTP secrets encrypted at rest using AES-256\n- SMS codes expire after 5 minutes\n- TOTP codes accept ±30 seconds for clock skew\n- Comprehensive audit logging\n- Backup codes for account recovery\n\n⚠️ **Partial Implementation:**\n- Rate limiting (basic implementation, needs refinement)\n- SMS service fallback (single provider only)\n\n❌ **Not Yet Implemented:**\n- Hardware security key support (FIDO2/WebAuthn)\n- Admin override capabilities\n- Bulk MFA operations for enterprise customers\n\n## Error Codes\n\n| Code | Description |\n|------|-------------|\n| `invalid_code` | The provided MFA code is incorrect |\n| `expired_code` | The code has expired (SMS only) |\n| `rate_limit_exceeded` | Too many verification attempts |\n| `mfa_not_enabled` | User has not set up MFA |\n| `service_unavailable` | MFA service temporarily unavailable |\n\n## Integration Example\n\n```javascript\n// Enable TOTP for user\nconst setupResponse = await fetch('/api/v1/mfa/totp/setup', {\n  method: 'POST',\n  headers: {\n    'Authorization': `Bearer ${userToken}`,\n    'Content-Type': 'application/json'\n  }\n});\n\nconst { secret, qr_code, backup_codes } = await setupResponse.json();\n\n// Show QR code to user for scanning with authenticator app\ndisplayQRCode(qr_code);\n\n// Store backup codes securely\nsecurelyStoreBackupCodes(backup_codes);\n```\n",
+      "location": {
+        "File": {
+          "path": "docs/api/mfa.md",
+          "line_range": null
+        }
+      },
+      "created_at": "2025-06-02T17:16:24.303751Z",
+      "author": "docs-team@company.com",
+      "metadata": {}
+    },
+    {
+      "id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "artifact_type": "Commit",
+      "content": "\nfeat(auth): implement TOTP-based multi-factor authentication\n\n- Add MfaManager with TOTP secret generation and verification\n- Implement rate limiting for MFA verification attempts (5 per 5 minutes)\n- Add encrypted storage for TOTP secrets using AES-256\n- Support ±30 second window for TOTP verification to handle clock skew\n- Add comprehensive audit logging for all MFA events\n- Generate 10 single-use backup codes for account recovery\n\nSecurity improvements:\n- All MFA secrets are encrypted at rest\n- Rate limiting prevents brute force attacks\n- Audit logs provide security monitoring capabilities\n\nStill TODO:\n- SMS-based MFA implementation\n- Hardware security key support\n- Admin override capabilities\n\nResolves: #1247\nCo-authored-by: Security Team <security@company.com>\n",
+      "location": {
+        "Commit": {
+          "hash": "a7b3c9d2e1f4567890abcdef1234567890abcdef",
+          "file_path": "src/auth/mfa.rs"
+        }
+      },
+      "created_at": "2025-06-03T17:16:24.303756Z",
+      "author": "alice@company.com",
+      "metadata": {
+        "branch": "feature/mfa-implementation",
+        "lines_added": "145",
+        "lines_removed": "0"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "c686c1c5-4fff-4877-9127-e152623ca3df",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "Users can enable and disable multi-factor authentication in their account settings",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "Users can enable/disable MFA in their account settings",
+      "extracted_at": "2025-06-05T17:16:40.381397Z"
+    },
+    {
+      "id": "08276768-1934-4140-8ded-75cdf7fd69a2",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "The system must support SMS-based verification codes for multi-factor authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Support SMS-based verification codes",
+      "extracted_at": "2025-06-05T17:16:40.381406Z"
+    },
+    {
+      "id": "37b6ea18-c29c-4bd8-8e37-5a09399d1223",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "The system must support TOTP authenticator apps for multi-factor authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Support TOTP authenticator apps (Google Authenticator, Authy, etc.)",
+      "extracted_at": "2025-06-05T17:16:40.381408Z"
+    },
+    {
+      "id": "a8af428a-4161-466e-aa84-4e16f08936dc",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "The system must generate backup codes for account recovery",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "Backup codes generation for account recovery",
+      "extracted_at": "2025-06-05T17:16:40.381410Z"
+    },
+    {
+      "id": "aa31407d-8e15-4f08-91ca-777756d6900d",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "MFA verification attempts must be rate limited",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Rate limiting on MFA verification attempts",
+      "extracted_at": "2025-06-05T17:16:40.381412Z"
+    },
+    {
+      "id": "7d4ae01b-9d86-4519-b695-0120263a919f",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "All MFA events must be logged for audit purposes",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "Audit logging for all MFA events",
+      "extracted_at": "2025-06-05T17:16:40.381415Z"
+    },
+    {
+      "id": "134b2dd6-77d9-4cf9-9df7-c0ce7c47d159",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "The system must gracefully handle MFA service unavailability",
+      "extraction_confidence": 0.8,
+      "claim_type": "Behavior",
+      "source_excerpt": "Graceful fallback if MFA service is unavailable",
+      "extracted_at": "2025-06-05T17:16:40.381417Z"
+    },
+    {
+      "id": "ef29d723-1420-4607-9952-35764cba8475",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "MFA must integrate with existing JWT authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Structure",
+      "source_excerpt": "Must integrate with existing JWT authentication",
+      "extracted_at": "2025-06-05T17:16:40.381419Z"
+    },
+    {
+      "id": "d737698f-bdbe-48ce-ad76-3b521d698b9e",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "MFA must be compatible with current user session management",
+      "extraction_confidence": 0.9,
+      "claim_type": "Structure",
+      "source_excerpt": "Should work with current user session management",
+      "extracted_at": "2025-06-05T17:16:40.381421Z"
+    },
+    {
+      "id": "3f48dec6-9e67-42c3-9e90-bc84d683c942",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "MFA secrets require secure storage",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Need secure storage for MFA secrets",
+      "extracted_at": "2025-06-05T17:16:40.381424Z"
+    },
+    {
+      "id": "d54bf74b-15dd-467d-a6b6-1dce82c49950",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "Rate limiting allows maximum 5 MFA verification attempts per 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Rate limiting: max 5 attempts per 5 minutes",
+      "extracted_at": "2025-06-05T17:16:40.381426Z"
+    },
+    {
+      "id": "6c506b8b-fc91-4671-a4dd-f71180b5d5fa",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "Each user will have 10 single-use backup codes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Backup codes: 10 single-use codes per user",
+      "extracted_at": "2025-06-05T17:16:40.381428Z"
+    },
+    {
+      "id": "4142dff7-eca1-4922-8241-05cfa4226e3d",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "MFA secrets must be encrypted when stored",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "MFA secrets must be encrypted at rest",
+      "extracted_at": "2025-06-05T17:16:40.381430Z"
+    },
+    {
+      "id": "f01d4f00-06d2-4af8-a1a5-53787d832fa5",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "SMS verification codes expire after 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "SMS codes expire after 5 minutes",
+      "extracted_at": "2025-06-05T17:16:40.381432Z"
+    },
+    {
+      "id": "cfcc0615-9bf9-4c91-a9fd-a9fa19f8ff48",
+      "artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "statement": "TOTP authenticator codes have a 30-second validity window",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "TOTP codes have 30-second windows",
+      "extracted_at": "2025-06-05T17:16:40.381434Z"
+    },
+    {
+      "id": "b90d64f7-715d-47ce-ad7d-d7608d8a017e",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Provides multi-factor authentication management with support for TOTP, SMS verification, and backup codes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "pub struct MfaManager",
+      "extracted_at": "2025-06-05T17:16:38.013980Z"
+    },
+    {
+      "id": "46aa34b8-0b38-47ff-ad34-fd582d5d2225",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Generates cryptographically secure TOTP secrets for user authentication",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "pub fn generate_totp_secret(&self, user_id: &str) -> Result<String, MfaError>",
+      "extracted_at": "2025-06-05T17:16:38.013991Z"
+    },
+    {
+      "id": "37435127-9273-44c8-b92e-19fae3e0b374",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Implements TOTP verification with time-based sliding window to handle clock skew",
+      "extraction_confidence": 0.95,
+      "claim_type": "Security",
+      "source_excerpt": "for step in [time_steps.wrapping_sub(1), time_steps, time_steps + 1]",
+      "extracted_at": "2025-06-05T17:16:38.013993Z"
+    },
+    {
+      "id": "799bb510-32ef-4a4b-b7d1-4764c571e617",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Enforces rate limiting to prevent brute force attacks",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "if !self.rate_limiter.allow_request(user_id)",
+      "extracted_at": "2025-06-05T17:16:38.013996Z"
+    },
+    {
+      "id": "4e148b81-7cfe-448d-8822-ade0a5f79d36",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Supports SMS-based verification with time-limited codes",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "let expires_at = chrono::Utc::now() + chrono::Duration::minutes(5)",
+      "extracted_at": "2025-06-05T17:16:38.013998Z"
+    },
+    {
+      "id": "8b37da34-0c5b-4bc3-8f41-f618ee80e24a",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Generates and securely stores backup recovery codes",
+      "extraction_confidence": 0.85,
+      "claim_type": "Security",
+      "source_excerpt": "pub fn generate_backup_codes(&self, user_id: &str) -> Result<Vec<String>, MfaError>",
+      "extracted_at": "2025-06-05T17:16:38.014002Z"
+    },
+    {
+      "id": "84a722a0-8030-4167-8b79-01d788c51332",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Encrypts and securely stores authentication secrets",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "let encrypted_secret = self.encrypt_secret(&secret)?",
+      "extracted_at": "2025-06-05T17:16:38.014005Z"
+    },
+    {
+      "id": "f8f3e4fb-55e5-4059-8f76-cd0b567c2e76",
+      "artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "statement": "Logs authentication events for auditing and security monitoring",
+      "extraction_confidence": 0.8,
+      "claim_type": "Security",
+      "source_excerpt": "self.log_mfa_event(user_id, \"totp_success\")",
+      "extracted_at": "2025-06-05T17:16:38.014007Z"
+    },
+    {
+      "id": "da8ae93d-aa10-4334-946a-95bc63dcc47d",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "TOTP secret generation produces a 52-character Base32 encoded secret",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "assert_eq!(secret.len(), 52); // Base32 encoded 32-byte secret",
+      "extracted_at": "2025-06-05T17:16:39.041961Z"
+    },
+    {
+      "id": "146e9b39-6b32-41db-94e4-ff80208aac35",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "TOTP verification succeeds for a valid generated code",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "let result = mfa.verify_totp(user_id, &totp_code).unwrap(); assert!(result, \"TOTP verification should succeed\")",
+      "extracted_at": "2025-06-05T17:16:39.041970Z"
+    },
+    {
+      "id": "07ed178b-a3b5-4c7c-a8e0-65472b5c069a",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "Invalid TOTP codes are rejected during verification",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "let invalid_result = mfa.verify_totp(user_id, \"000000\").unwrap(); assert!(!invalid_result, \"Invalid TOTP should fail\")",
+      "extracted_at": "2025-06-05T17:16:39.041974Z"
+    },
+    {
+      "id": "2d04da25-a785-499d-b7e2-35649060730f",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "SMS code flow includes code generation, storage, and single-use verification",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "mfa.send_sms_code(user_id, phone).await.unwrap(); ... let stored_code = mfa.get_stored_sms_code(user_id).unwrap(); ... let second_result = mfa.verify_sms_code(user_id, &code).unwrap(); assert!(!second_result, \"SMS code should only work once\")",
+      "extracted_at": "2025-06-05T17:16:39.041977Z"
+    },
+    {
+      "id": "d36df5de-4616-4495-b872-270efdbaca67",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "Rate limiting prevents excessive verification attempts",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "for i in 0..5 { ... } let result = mfa.verify_totp(user_id, \"000000\"); assert!(matches!(result, Err(MfaError::RateLimitExceeded)))",
+      "extracted_at": "2025-06-05T17:16:39.041981Z"
+    },
+    {
+      "id": "88c87b62-95a6-4345-ba22-d3377cdaf0cd",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "Backup code generation produces exactly 10 unique 8-character codes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "assert_eq!(codes.len(), 10); let unique_codes: std::collections::HashSet<_> = codes.iter().collect(); assert_eq!(unique_codes.len(), 10); for code in &codes { assert_eq!(code.len(), 8); }",
+      "extracted_at": "2025-06-05T17:16:39.041987Z"
+    },
+    {
+      "id": "82d7073a-6256-4780-951b-3ac7e2e9079d",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "MFA operations are logged for audit purposes",
+      "extraction_confidence": 0.8,
+      "claim_type": "Security",
+      "source_excerpt": "let logs = mfa.get_audit_logs(user_id); assert!(logs.len() >= 2); assert!(logs.iter().any(|log| log.event_type == \"totp_secret_generated\")); assert!(logs.iter().any(|log| log.event_type == \"totp_failure\"))",
+      "extracted_at": "2025-06-05T17:16:39.041990Z"
+    },
+    {
+      "id": "b9d93ca0-0203-415b-a6fc-75ee11e2f892",
+      "artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "statement": "Test suite identifies future testing requirements for MFA system",
+      "extraction_confidence": 0.7,
+      "claim_type": "Testing",
+      "source_excerpt": "// TODO: Test SMS service failover\n// TODO: Test encryption/decryption of secrets\n// TODO: Test backup code verification and consumption\n// TODO: Test concurrent rate limiting",
+      "extracted_at": "2025-06-05T17:16:39.041994Z"
+    },
+    {
+      "id": "79adb50e-f7c4-4a67-bb61-3ae66dfb0c74",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "The MFA system supports TOTP and SMS-based multi-factor authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Our MFA system provides additional security for user accounts through SMS and TOTP-based verification.",
+      "extracted_at": "2025-06-05T17:16:36.066313Z"
+    },
+    {
+      "id": "a295a02d-ae14-4b02-af17-cf4f4354bef0",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "TOTP secrets are encrypted at rest using AES-256",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "TOTP secrets encrypted at rest using AES-256",
+      "extracted_at": "2025-06-05T17:16:36.066329Z"
+    },
+    {
+      "id": "baacb0e1-24d7-4c06-93d9-326fd262c68f",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "SMS codes expire after 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "SMS codes expire after 5 minutes",
+      "extracted_at": "2025-06-05T17:16:36.066332Z"
+    },
+    {
+      "id": "0d9aa94f-e4fe-4bba-a94d-14c4cc2daca2",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "Rate limiting is implemented for MFA verification attempts",
+      "extraction_confidence": 0.8,
+      "claim_type": "Security",
+      "source_excerpt": "TOTP/SMS verification: 5 attempts per 5 minutes per user",
+      "extracted_at": "2025-06-05T17:16:36.066335Z"
+    },
+    {
+      "id": "5a00ba34-f612-4e4e-93f0-3f1461b43087",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "The system provides backup codes for account recovery",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Backup codes for account recovery",
+      "extracted_at": "2025-06-05T17:16:36.066337Z"
+    },
+    {
+      "id": "b35b9c3e-a4e7-4cbb-bf5d-8855b5dad07d",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "TOTP codes allow ±30 seconds clock skew",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "TOTP codes accept ±30 seconds for clock skew",
+      "extracted_at": "2025-06-05T17:16:36.066344Z"
+    },
+    {
+      "id": "1518f212-f26a-4cbf-9d03-4d50484e0475",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "Hardware security key support is not yet implemented",
+      "extraction_confidence": 1.0,
+      "claim_type": "Requirement",
+      "source_excerpt": "Hardware security key support (FIDO2/WebAuthn) [❌ Not Yet Implemented]",
+      "extracted_at": "2025-06-05T17:16:36.066347Z"
+    },
+    {
+      "id": "e42d0401-fb79-4d10-9867-b5e0ad1a8738",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "The system provides comprehensive audit logging",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "Comprehensive audit logging",
+      "extracted_at": "2025-06-05T17:16:36.066349Z"
+    },
+    {
+      "id": "59fbf286-edeb-4a97-ba96-ae2be16e551d",
+      "artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "statement": "Rate limiting returns HTTP 429 with retry information when exceeded",
+      "extraction_confidence": 1.0,
+      "claim_type": "Behavior",
+      "source_excerpt": "Rate limit exceeded responses return HTTP 429 with: { \"error\": \"rate_limit_exceeded\", \"retry_after\": 300 }",
+      "extracted_at": "2025-06-05T17:16:36.066352Z"
+    },
+    {
+      "id": "c89abcdf-d9ca-4cd0-b246-fdaa13fe0fcc",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Implement TOTP-based multi-factor authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "feat(auth): implement TOTP-based multi-factor authentication",
+      "extracted_at": "2025-06-05T17:16:35.043978Z"
+    },
+    {
+      "id": "0ba4640f-9d61-4da4-a7a3-fc9075b251dc",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Generate TOTP secrets for multi-factor authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Add MfaManager with TOTP secret generation and verification",
+      "extracted_at": "2025-06-05T17:16:35.043986Z"
+    },
+    {
+      "id": "451e34cd-977f-44cf-b9fa-dd0b345cdd35",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Implement rate limiting of 5 MFA verification attempts per 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Implement rate limiting for MFA verification attempts (5 per 5 minutes)",
+      "extracted_at": "2025-06-05T17:16:35.043989Z"
+    },
+    {
+      "id": "5d167f1e-7e7c-43f1-9479-29f26b250947",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Store TOTP secrets using AES-256 encryption",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Add encrypted storage for TOTP secrets using AES-256",
+      "extracted_at": "2025-06-05T17:16:35.043992Z"
+    },
+    {
+      "id": "387575f0-e742-4c51-ad76-48e0037b5e84",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Support ±30 second time window for TOTP verification",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Support ±30 second window for TOTP verification to handle clock skew",
+      "extracted_at": "2025-06-05T17:16:35.043994Z"
+    },
+    {
+      "id": "427a8e53-257b-41d0-a646-fb795c9318ef",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Generate 10 single-use backup codes for account recovery",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Generate 10 single-use backup codes for account recovery",
+      "extracted_at": "2025-06-05T17:16:35.043998Z"
+    },
+    {
+      "id": "621e846a-3616-481d-be3e-ce7c9382f8d3",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Comprehensive audit logging for all MFA events",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Add comprehensive audit logging for all MFA events",
+      "extracted_at": "2025-06-05T17:16:35.044Z"
+    },
+    {
+      "id": "aae0eb9b-2d27-41eb-86ad-8e1eca878d6b",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Future TODO: Implement SMS-based MFA",
+      "extraction_confidence": 0.7,
+      "claim_type": "Requirement",
+      "source_excerpt": "Still TODO: SMS-based MFA implementation",
+      "extracted_at": "2025-06-05T17:16:35.044002Z"
+    },
+    {
+      "id": "28ee607a-1f2e-43a0-8162-4a35f98943cd",
+      "artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "statement": "Future TODO: Add hardware security key support",
+      "extraction_confidence": 0.7,
+      "claim_type": "Requirement",
+      "source_excerpt": "Still TODO: Hardware security key support",
+      "extracted_at": "2025-06-05T17:16:35.044004Z"
+    }
+  ],
+  "alignments": [
+    {
+      "id": "3c7d8c0d-fc23-49ac-a1ce-156eb800c17e",
+      "claim_id": "c686c1c5-4fff-4877-9127-e152623ca3df",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.5,
+      "explanation": "The evidence partially supports the claim about enabling/disabling MFA, but does not directly show user account settings for MFA configuration. The code demonstrates MFA functionality implementation, but lacks explicit user-controlled enable/disable mechanism.",
+      "checked_at": "2025-06-05T17:16:48.120235Z"
+    },
+    {
+      "id": "a6d3a458-6c28-48c4-8ca4-2b9b7ce67a9c",
+      "claim_id": "c686c1c5-4fff-4877-9127-e152623ca3df",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.3,
+      "explanation": "The evidence does not directly address enabling/disabling multi-factor authentication in account settings. While the artifact provides comprehensive testing of MFA functionality like TOTP generation, SMS codes, and backup codes, it does not show the specific user action of enabling or disabling MFA in account settings.",
+      "checked_at": "2025-06-05T17:19:33.945545Z"
+    },
+    {
+      "id": "2b452d78-7c97-4bf9-9da9-dbf2176bb288",
+      "claim_id": "c686c1c5-4fff-4877-9127-e152623ca3df",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for enabling and disabling multi-factor authentication, with detailed API endpoints for MFA setup and management",
+      "checked_at": "2025-06-05T17:16:48.618567Z"
+    },
+    {
+      "id": "65351799-9e2f-43c4-be8f-8802fecb9f5e",
+      "claim_id": "c686c1c5-4fff-4877-9127-e152623ca3df",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.8,
+      "explanation": "The evidence provides strong support for multi-factor authentication implementation, with direct references to TOTP-based MFA and related functionality. However, the specific claim about user-controlled enable/disable in account settings is not explicitly confirmed.",
+      "checked_at": "2025-06-05T17:16:49.095809Z"
+    },
+    {
+      "id": "b1a4d387-2097-4c1f-8837-095eb2a60705",
+      "claim_id": "08276768-1934-4140-8ded-75cdf7fd69a2",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for SMS-based verification codes in multi-factor authentication",
+      "checked_at": "2025-06-05T17:19:41.194988Z"
+    },
+    {
+      "id": "868c6f45-e5cb-494a-bf04-c62e11761d58",
+      "claim_id": "08276768-1934-4140-8ded-75cdf7fd69a2",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for SMS-based verification codes in multi-factor authentication, with a comprehensive test suite demonstrating the full SMS verification flow.",
+      "checked_at": "2025-06-05T17:19:43.181605Z"
+    },
+    {
+      "id": "dc79eafa-cbd4-4101-8810-feb72eb24cba",
+      "claim_id": "08276768-1934-4140-8ded-75cdf7fd69a2",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides comprehensive support for SMS-based multi-factor authentication, with explicit endpoints, request/response structures, and security features for SMS verification",
+      "checked_at": "2025-06-05T17:19:43.888881Z"
+    },
+    {
+      "id": "3814ae78-01db-4c85-80ad-6eb103329c0a",
+      "claim_id": "08276768-1934-4140-8ded-75cdf7fd69a2",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.3,
+      "explanation": "The evidence partially supports the claim but explicitly acknowledges SMS-based MFA is not yet implemented. The commit introduces TOTP-based multi-factor authentication with advanced security features, but specifically lists SMS-based MFA as a pending TODO item.",
+      "checked_at": "2025-06-05T17:16:47.508573Z"
+    },
+    {
+      "id": "c4cfb49d-929a-40af-9dea-21b1a31e08b4",
+      "claim_id": "37b6ea18-c29c-4bd8-8e37-5a09399d1223",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides comprehensive support for TOTP authenticator app multi-factor authentication, implementing key functionality with robust security mechanisms",
+      "checked_at": "2025-06-05T17:19:47.684869Z"
+    },
+    {
+      "id": "404b665f-0d69-44d7-aa91-24067f6f1151",
+      "claim_id": "37b6ea18-c29c-4bd8-8e37-5a09399d1223",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.95,
+      "explanation": "The test suite provides comprehensive evidence of TOTP authenticator app support, with multiple test cases demonstrating generation, verification, and related multi-factor authentication behaviors",
+      "checked_at": "2025-06-05T17:19:52.567498Z"
+    },
+    {
+      "id": "14f06040-5c14-4577-a768-b5051765558b",
+      "claim_id": "37b6ea18-c29c-4bd8-8e37-5a09399d1223",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides comprehensive support for TOTP authenticator app multi-factor authentication, with explicit implementation details, API endpoints, and integration examples.",
+      "checked_at": "2025-06-05T17:19:44.232667Z"
+    },
+    {
+      "id": "52b09e3f-acf8-45ce-969e-8a2e682b4368",
+      "claim_id": "37b6ea18-c29c-4bd8-8e37-5a09399d1223",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.95,
+      "explanation": "The commit provides comprehensive, direct implementation of TOTP-based multi-factor authentication with strong security considerations, fully supporting the claim.",
+      "checked_at": "2025-06-05T17:19:50.458801Z"
+    },
+    {
+      "id": "857a2618-d8c3-48b8-bcf3-870f40965983",
+      "claim_id": "a8af428a-4161-466e-aa84-4e16f08936dc",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for the claim of generating backup codes for account recovery. The test case `test_backup_codes_generation` explicitly demonstrates the implementation of backup code generation.",
+      "checked_at": "2025-06-05T17:16:48.846644Z"
+    },
+    {
+      "id": "e7fe101c-4008-403d-a881-7fc5a4a439a3",
+      "claim_id": "a8af428a-4161-466e-aa84-4e16f08936dc",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides comprehensive support for generating backup codes for account recovery, with clear implementation details and documentation",
+      "checked_at": "2025-06-05T17:19:26.052532Z"
+    },
+    {
+      "id": "7116a37b-5b3a-4381-afad-4e969ddb7630",
+      "claim_id": "a8af428a-4161-466e-aa84-4e16f08936dc",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides direct and strong support for generating backup codes for account recovery, with an explicit mention in the commit message",
+      "checked_at": "2025-06-05T17:19:30.943078Z"
+    },
+    {
+      "id": "fe246da1-faf4-4879-a08d-080f0cffc835",
+      "claim_id": "aa31407d-8e15-4f08-91ca-777756d6900d",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for rate limiting on MFA verification attempts across multiple authentication methods",
+      "checked_at": "2025-06-05T17:19:47.370937Z"
+    },
+    {
+      "id": "b2bc3240-a508-4c01-8d30-1d2c1ac7f17f",
+      "claim_id": "aa31407d-8e15-4f08-91ca-777756d6900d",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for the claim that MFA verification attempts must be rate limited. The test_rate_limiting function explicitly demonstrates a rate limiting mechanism for MFA verification attempts.",
+      "checked_at": "2025-06-05T17:19:34.559678Z"
+    },
+    {
+      "id": "9e30f25f-73fd-456a-861a-bc92714782a3",
+      "claim_id": "aa31407d-8e15-4f08-91ca-777756d6900d",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides comprehensive support for rate limiting MFA verification attempts, with explicit details on implementation and constraints",
+      "checked_at": "2025-06-05T17:19:36.787061Z"
+    },
+    {
+      "id": "97429672-0046-4e6e-90fa-bb9bc3771599",
+      "claim_id": "aa31407d-8e15-4f08-91ca-777756d6900d",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for the claim that MFA verification attempts must be rate limited. The commit message explicitly describes implementing rate limiting for MFA verification attempts with a specific constraint.",
+      "checked_at": "2025-06-05T17:16:54.801735Z"
+    },
+    {
+      "id": "b8cb85f8-2585-4b73-9719-659e36897655",
+      "claim_id": "7d4ae01b-9d86-4519-b695-0120263a919f",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.8,
+      "explanation": "The evidence provides strong support for logging MFA events, with explicit logging methods integrated into multiple MFA-related functions.",
+      "checked_at": "2025-06-05T17:16:58.168222Z"
+    },
+    {
+      "id": "15a212a1-13ad-4b6c-9441-3f1b30ce584a",
+      "claim_id": "7d4ae01b-9d86-4519-b695-0120263a919f",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.8,
+      "explanation": "The evidence provides strong support for the claim that MFA events must be logged for audit purposes, with a dedicated test function demonstrating audit logging functionality",
+      "checked_at": "2025-06-05T17:16:58.442472Z"
+    },
+    {
+      "id": "ffc8251e-3fff-4ff5-8f42-f5f6ebb41df0",
+      "claim_id": "7d4ae01b-9d86-4519-b695-0120263a919f",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.7,
+      "explanation": "The evidence provides moderate support for the claim that 'All MFA events must be logged for audit purposes'. While the documentation mentions comprehensive audit logging, it does not explicitly detail the full scope of event logging for MFA.",
+      "checked_at": "2025-06-05T17:16:56.468889Z"
+    },
+    {
+      "id": "7b2fa0d4-fff1-4d1d-bdeb-964d3990c1b7",
+      "claim_id": "7d4ae01b-9d86-4519-b695-0120263a919f",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for the claim of logging all MFA events. The commit message explicitly mentions 'comprehensive audit logging for all MFA events' and includes multiple security-focused logging and auditing features.",
+      "checked_at": "2025-06-05T17:16:57.955548Z"
+    },
+    {
+      "id": "92aba1da-34ca-46e5-8904-1f8cdd585901",
+      "claim_id": "134b2dd6-77d9-4cf9-9df7-c0ce7c47d159",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.5,
+      "explanation": "The evidence partially addresses MFA service unavailability, but lacks explicit graceful fallback mechanisms. While the code demonstrates robust error handling and logging, it does not show comprehensive handling of service unavailability scenarios.",
+      "checked_at": "2025-06-05T17:17:11.638257Z"
+    },
+    {
+      "id": "bf365912-4788-4826-9014-6fdd8be0d7f7",
+      "claim_id": "134b2dd6-77d9-4cf9-9df7-c0ce7c47d159",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.5,
+      "explanation": "The evidence does not directly address MFA service unavailability handling. While the tests cover various MFA scenarios, there are no explicit tests for service unavailability or graceful fallback mechanisms.",
+      "checked_at": "2025-06-05T17:17:03.830671Z"
+    },
+    {
+      "id": "b17c7a4e-e0bd-4b60-b9e6-155292d73cfb",
+      "claim_id": "134b2dd6-77d9-4cf9-9df7-c0ce7c47d159",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.6,
+      "explanation": "Partial support for graceful MFA service unavailability handling, with some indication of service failure awareness but lacking explicit fallback mechanisms",
+      "checked_at": "2025-06-05T17:17:07.677268Z"
+    },
+    {
+      "id": "961a5622-0c05-4dc7-9089-949d3c19a19a",
+      "claim_id": "134b2dd6-77d9-4cf9-9df7-c0ce7c47d159",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.4,
+      "explanation": "The evidence provides limited support for gracefully handling MFA service unavailability. While the commit demonstrates robust MFA implementation, it lacks explicit fallback mechanisms for service unavailability.",
+      "checked_at": "2025-06-05T17:17:05.462383Z"
+    },
+    {
+      "id": "d7585934-c9cf-45b0-a728-0d0f9365ee8f",
+      "claim_id": "ef29d723-1420-4607-9952-35764cba8475",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.4,
+      "explanation": "The evidence does not directly demonstrate integration with existing JWT authentication. While the code presents a robust Multi-Factor Authentication (MFA) implementation, it lacks explicit JWT token handling or integration mechanisms.",
+      "checked_at": "2025-06-05T17:17:05.299172Z"
+    },
+    {
+      "id": "50f512ad-2dab-493f-9a0f-c2266df66d31",
+      "claim_id": "ef29d723-1420-4607-9952-35764cba8475",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.3,
+      "explanation": "The evidence does not provide direct support for JWT authentication integration. The test suite focuses on MFA (Multi-Factor Authentication) functionality like TOTP, SMS codes, and backup codes, but does not show explicit integration with JWT authentication.",
+      "checked_at": "2025-06-05T17:17:12.176843Z"
+    },
+    {
+      "id": "7e14465e-57fc-4234-a55e-0e5f7980b973",
+      "claim_id": "ef29d723-1420-4607-9952-35764cba8475",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.7,
+      "explanation": "The evidence provides strong circumstantial support for JWT integration, though direct JWT authentication mechanism is not explicitly documented",
+      "checked_at": "2025-06-05T17:17:12.684410Z"
+    },
+    {
+      "id": "bca127aa-449c-421e-b226-4facab30b419",
+      "claim_id": "ef29d723-1420-4607-9952-35764cba8475",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.7,
+      "explanation": "The evidence provides strong indication of MFA implementation, but does not explicitly show JWT integration",
+      "checked_at": "2025-06-05T17:17:12.202921Z"
+    },
+    {
+      "id": "0c848664-1a60-400a-95cc-2052d32130ae",
+      "claim_id": "d737698f-bdbe-48ce-ad76-3b521d698b9e",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.8,
+      "explanation": "The MFA implementation demonstrates strong compatibility with session management through several key design elements that support integration with existing user authentication flows",
+      "checked_at": "2025-06-05T17:17:16.811782Z"
+    },
+    {
+      "id": "52dbf52d-4496-493d-bd25-097193819a08",
+      "claim_id": "d737698f-bdbe-48ce-ad76-3b521d698b9e",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.7,
+      "explanation": "The test suite provides strong indirect evidence of compatibility with session management through comprehensive MFA testing, but does not explicitly demonstrate direct session management integration",
+      "checked_at": "2025-06-05T17:17:20.898163Z"
+    },
+    {
+      "id": "11ad53db-8478-49bb-bde6-2b3dc6e61d31",
+      "claim_id": "d737698f-bdbe-48ce-ad76-3b521d698b9e",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The MFA documentation provides strong evidence of compatibility with user session management through authentication and verification mechanisms that integrate seamlessly with existing authentication flows.",
+      "checked_at": "2025-06-05T17:17:20.895035Z"
+    },
+    {
+      "id": "b57bd0d9-1177-45de-a6b0-54da587eb6c5",
+      "claim_id": "d737698f-bdbe-48ce-ad76-3b521d698b9e",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence shows a comprehensive MFA implementation that strongly suggests compatibility with existing session management, though some details are not explicitly confirmed",
+      "checked_at": "2025-06-05T17:17:20.892917Z"
+    },
+    {
+      "id": "a4c7584c-85d4-4c5f-b304-df95b003c35c",
+      "claim_id": "3f48dec6-9e67-42c3-9e90-bc84d683c942",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides robust support for secure MFA secret storage through multiple security mechanisms",
+      "checked_at": "2025-06-05T17:17:36.872711Z"
+    },
+    {
+      "id": "bd997f90-89cb-4070-9654-e61997b93b93",
+      "claim_id": "3f48dec6-9e67-42c3-9e90-bc84d683c942",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.6,
+      "explanation": "The evidence provides partial support for secure MFA secret storage, with several relevant test cases demonstrating security considerations, but lacks explicit comprehensive secret storage implementation details.",
+      "checked_at": "2025-06-05T17:17:25.700194Z"
+    },
+    {
+      "id": "be17d62b-40ca-4593-accd-e80dc881ca9f",
+      "claim_id": "3f48dec6-9e67-42c3-9e90-bc84d683c942",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for secure storage of MFA secrets, demonstrating multiple security measures and considerations for protecting sensitive authentication information.",
+      "checked_at": "2025-06-05T17:17:30.296107Z"
+    },
+    {
+      "id": "3aa0696f-c4fa-4b5a-bacb-cf58f419a029",
+      "claim_id": "3f48dec6-9e67-42c3-9e90-bc84d683c942",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides comprehensive support for the claim that MFA secrets require secure storage, demonstrating multiple layers of security implementation for MFA secret protection.",
+      "checked_at": "2025-06-05T17:17:28.349739Z"
+    },
+    {
+      "id": "0a7a35ae-2639-42d5-a15d-00e72f8268a2",
+      "claim_id": "d54bf74b-15dd-467d-a6b6-1dce82c49950",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.6,
+      "explanation": "The evidence partially supports the rate limiting claim, but lacks explicit specification of the exact 5 attempts per 5 minutes constraint",
+      "checked_at": "2025-06-05T17:17:29.865281Z"
+    },
+    {
+      "id": "170ba23e-71fe-49a1-b0c0-93e3ceea72fb",
+      "claim_id": "d54bf74b-15dd-467d-a6b6-1dce82c49950",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.85,
+      "explanation": "The test artifact provides strong support for the rate limiting claim with a specific test case validating the 5 MFA verification attempts per 5 minutes constraint",
+      "checked_at": "2025-06-05T17:17:33.544278Z"
+    },
+    {
+      "id": "23381ffe-beb0-41cb-af4b-9cdc8eeff34b",
+      "claim_id": "d54bf74b-15dd-467d-a6b6-1dce82c49950",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides direct and comprehensive support for the claim about rate limiting MFA verification attempts, with explicit documentation of the policy",
+      "checked_at": "2025-06-05T17:17:34.286644Z"
+    },
+    {
+      "id": "ca16f392-f052-4605-965b-45230486e756",
+      "claim_id": "d54bf74b-15dd-467d-a6b6-1dce82c49950",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for the claim about rate limiting MFA verification attempts. The commit message explicitly mentions implementing rate limiting with a specific constraint of 5 attempts per 5 minutes.",
+      "checked_at": "2025-06-05T17:17:38.826206Z"
+    },
+    {
+      "id": "ac9c144c-b4de-4289-8bb7-ae667cd2beb0",
+      "claim_id": "6c506b8b-fc91-4671-a4dd-f71180b5d5fa",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 1.0,
+      "explanation": "The evidence artifact directly and comprehensively supports the claim that each user will have 10 single-use backup codes",
+      "checked_at": "2025-06-05T17:17:38.328702Z"
+    },
+    {
+      "id": "f3203996-b0af-4aa8-aede-0bd62ff36f01",
+      "claim_id": "6c506b8b-fc91-4671-a4dd-f71180b5d5fa",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.7,
+      "explanation": "The evidence partially supports the claim about 10 single-use backup codes. While backup codes are mentioned and demonstrated in the API documentation, the exact number of 10 codes is not explicitly confirmed.",
+      "checked_at": "2025-06-05T17:17:42.888905Z"
+    },
+    {
+      "id": "af883623-165e-44d3-adb9-76164032284c",
+      "claim_id": "6c506b8b-fc91-4671-a4dd-f71180b5d5fa",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for the claim of generating 10 single-use backup codes per user, with an explicit mention in the commit message.",
+      "checked_at": "2025-06-05T17:17:43.945909Z"
+    },
+    {
+      "id": "3276ed67-9cd7-44e9-a03a-80681f4804d3",
+      "claim_id": "4142dff7-eca1-4922-8241-05cfa4226e3d",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for encrypting MFA secrets, with explicit encryption and decryption methods for sensitive authentication data",
+      "checked_at": "2025-06-05T17:17:47.690965Z"
+    },
+    {
+      "id": "cfba3b00-81d8-476b-9e24-a1d8b8be2b40",
+      "claim_id": "4142dff7-eca1-4922-8241-05cfa4226e3d",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.3,
+      "explanation": "The evidence does not directly demonstrate or test MFA secret encryption at rest. While the test suite covers multiple MFA functionality aspects, there is no explicit test or implementation showing encryption of secrets.",
+      "checked_at": "2025-06-05T17:17:46.531752Z"
+    },
+    {
+      "id": "878213b0-f76b-4cd9-8069-03085f567fff",
+      "claim_id": "4142dff7-eca1-4922-8241-05cfa4226e3d",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for the claim that MFA secrets must be encrypted when stored. The documentation explicitly confirms encryption of sensitive MFA-related data.",
+      "checked_at": "2025-06-05T17:17:50.839336Z"
+    },
+    {
+      "id": "f6c2f55e-f978-4167-83da-b364a5ea64f9",
+      "claim_id": "4142dff7-eca1-4922-8241-05cfa4226e3d",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides direct and comprehensive support for the claim that MFA secrets must be encrypted when stored. The commit specifically highlights encryption of MFA secrets and includes multiple security-focused implementation details.",
+      "checked_at": "2025-06-05T17:17:51.681037Z"
+    },
+    {
+      "id": "e1845aca-4bd4-4742-be91-0042e82df19a",
+      "claim_id": "f01d4f00-06d2-4af8-a1a5-53787d832fa5",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.9,
+      "explanation": "The evidence strongly supports the claim that SMS verification codes expire after 5 minutes. The `send_sms_code` method explicitly implements a 5-minute expiration mechanism using `chrono::Duration::minutes(5)`.",
+      "checked_at": "2025-06-05T17:17:56.316291Z"
+    },
+    {
+      "id": "6872ff3b-2f67-4914-ab03-238e00aa32ba",
+      "claim_id": "f01d4f00-06d2-4af8-a1a5-53787d832fa5",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.2,
+      "explanation": "The evidence artifact (test suite) does not provide direct support for the claim that SMS verification codes expire after 5 minutes. While the test suite includes SMS code verification tests, there is no explicit test or implementation detail demonstrating a 5-minute expiration.",
+      "checked_at": "2025-06-05T17:17:57.922882Z"
+    },
+    {
+      "id": "c8104eed-028b-4ec7-8bad-fd48a705e4c3",
+      "claim_id": "f01d4f00-06d2-4af8-a1a5-53787d832fa5",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.9,
+      "explanation": "The documentation provides direct and explicit support for the claim that SMS verification codes expire after 5 minutes, with multiple corroborating evidence points.",
+      "checked_at": "2025-06-05T17:17:59.593641Z"
+    },
+    {
+      "id": "85ef21f7-d22d-42c8-b2a8-1f2f2f9137c9",
+      "claim_id": "f01d4f00-06d2-4af8-a1a5-53787d832fa5",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.3,
+      "explanation": "The evidence does not directly support the claim about SMS verification code expiration. While the artifact discusses multi-factor authentication (MFA) and implements rate limiting, it explicitly notes that SMS-based MFA is still TODO and does not confirm the 5-minute expiration specifics.",
+      "checked_at": "2025-06-05T17:17:59.154876Z"
+    },
+    {
+      "id": "5975ee5c-56da-4b14-b5f5-9f7a59af129d",
+      "claim_id": "cfcc0615-9bf9-4c91-a9fd-a9fa19f8ff48",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides direct and strong support for the claim that TOTP authenticator codes have a 30-second validity window",
+      "checked_at": "2025-06-05T17:18:05.294572Z"
+    },
+    {
+      "id": "85aa9e12-5986-4936-b27d-9b2ee0b0f47c",
+      "claim_id": "cfcc0615-9bf9-4c91-a9fd-a9fa19f8ff48",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.5,
+      "explanation": "The evidence does not directly validate the 30-second TOTP window claim. While the test suite includes TOTP-related tests, there's no explicit verification of the 30-second time window validity.",
+      "checked_at": "2025-06-05T17:18:05.323766Z"
+    },
+    {
+      "id": "571dceac-6449-4179-9da9-44cf69e6c640",
+      "claim_id": "cfcc0615-9bf9-4c91-a9fd-a9fa19f8ff48",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The evidence directly supports the claim that TOTP authenticator codes have a 30-second validity window, with explicit documentation of the time-based validation approach",
+      "checked_at": "2025-06-05T17:18:07.274940Z"
+    },
+    {
+      "id": "8d63b424-1994-4df6-92d1-58c535b7fec2",
+      "claim_id": "cfcc0615-9bf9-4c91-a9fd-a9fa19f8ff48",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides strong, direct support for the claim about TOTP authenticator codes having a 30-second validity window",
+      "checked_at": "2025-06-05T17:18:08.143778Z"
+    },
+    {
+      "id": "d2bcde93-d281-46d2-a28d-94b4dbda4d56",
+      "claim_id": "b90d64f7-715d-47ce-ad7d-d7608d8a017e",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.85,
+      "explanation": "The GitHub ticket provides comprehensive support for the multi-factor authentication claim, covering most of the specified authentication methods and technical requirements.",
+      "checked_at": "2025-06-05T17:18:14.094078Z"
+    },
+    {
+      "id": "0e55f5b2-b51e-4500-bbf2-95126b273bcd",
+      "claim_id": "b90d64f7-715d-47ce-ad7d-d7608d8a017e",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.95,
+      "explanation": "The test suite provides comprehensive evidence of multi-factor authentication management with support for TOTP, SMS verification, and backup codes, covering key functional requirements and behaviors.",
+      "checked_at": "2025-06-05T17:18:15.090303Z"
+    },
+    {
+      "id": "cb430348-8549-49b7-b0cf-b1dd2da1c228",
+      "claim_id": "b90d64f7-715d-47ce-ad7d-d7608d8a017e",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides comprehensive documentation for multi-factor authentication management, fully supporting the claim with robust details across TOTP, SMS, and backup code verification mechanisms.",
+      "checked_at": "2025-06-05T17:18:17.377031Z"
+    },
+    {
+      "id": "a41dbfbd-edc8-4a57-b840-f1f166e670b2",
+      "claim_id": "b90d64f7-715d-47ce-ad7d-d7608d8a017e",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for most aspects of the multi-factor authentication claim, with partial implementation of the requested features",
+      "checked_at": "2025-06-05T17:18:16.437959Z"
+    },
+    {
+      "id": "d7824deb-6491-44de-874c-8059a747f72a",
+      "claim_id": "46aa34b8-0b38-47ff-ad34-fd582d5d2225",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.75,
+      "explanation": "The evidence provides substantial support for generating TOTP secrets, with security considerations and requirements that align with cryptographically secure authentication mechanisms",
+      "checked_at": "2025-06-05T17:18:19.816315Z"
+    },
+    {
+      "id": "c49b83cf-0068-4781-9400-05fd5f33980b",
+      "claim_id": "46aa34b8-0b38-47ff-ad34-fd582d5d2225",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for generating cryptographically secure TOTP secrets, with comprehensive testing of generation and verification processes",
+      "checked_at": "2025-06-05T17:18:24.123026Z"
+    },
+    {
+      "id": "4b1e0801-e6a9-4470-8d85-8f4c2a7be088",
+      "claim_id": "46aa34b8-0b38-47ff-ad34-fd582d5d2225",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for generating cryptographically secure TOTP secrets, with comprehensive documentation of the TOTP secret generation and security features.",
+      "checked_at": "2025-06-05T17:18:24.245214Z"
+    },
+    {
+      "id": "7a5d19ca-b1e9-40cb-8262-53e95759d3f1",
+      "claim_id": "46aa34b8-0b38-47ff-ad34-fd582d5d2225",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for cryptographically secure TOTP secret generation, with multiple security-focused implementations and considerations",
+      "checked_at": "2025-06-05T17:18:24.123022Z"
+    },
+    {
+      "id": "15c57d33-9980-4a85-822d-509cdccd4cb3",
+      "claim_id": "37435127-9273-44c8-b92e-19fae3e0b374",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.5,
+      "explanation": "The evidence provides general support for TOTP implementation but lacks specific details about time-based sliding window for handling clock skew",
+      "checked_at": "2025-06-05T17:18:25.264076Z"
+    },
+    {
+      "id": "2d40f265-74c4-449a-9ac2-861e1377ad10",
+      "claim_id": "37435127-9273-44c8-b92e-19fae3e0b374",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.6,
+      "explanation": "The evidence provides partial support for the TOTP verification claim, but lacks explicit demonstration of time-based sliding window handling clock skew",
+      "checked_at": "2025-06-05T17:18:37.053007Z"
+    },
+    {
+      "id": "fc595ddf-aae2-4387-9a20-bf57cfd7c0fa",
+      "claim_id": "37435127-9273-44c8-b92e-19fae3e0b374",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.6,
+      "explanation": "Partial support for TOTP verification with time-based sliding window. Evidence shows TOTP implementation with clock skew tolerance, but lacks explicit details about sliding window mechanism.",
+      "checked_at": "2025-06-05T17:18:32.256354Z"
+    },
+    {
+      "id": "5b62bfcb-6ee7-4901-8040-23d5dd2a6a17",
+      "claim_id": "37435127-9273-44c8-b92e-19fae3e0b374",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for TOTP verification with time-based sliding window, explicitly addressing clock skew handling",
+      "checked_at": "2025-06-05T17:18:31.443851Z"
+    },
+    {
+      "id": "13814ea7-b647-45d1-bafb-a00bf72c31a6",
+      "claim_id": "799bb510-32ef-4a4b-b7d1-4764c571e617",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.7,
+      "explanation": "The evidence provides indirect but strong support for rate limiting to prevent brute force attacks, specifically in the context of MFA verification attempts",
+      "checked_at": "2025-06-05T17:18:33.024009Z"
+    },
+    {
+      "id": "1809ca31-be22-4889-b8cf-7a8ecb6ad93e",
+      "claim_id": "799bb510-32ef-4a4b-b7d1-4764c571e617",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for rate limiting functionality in the MFA verification process, with a comprehensive test case demonstrating rate limit enforcement.",
+      "checked_at": "2025-06-05T17:18:34.845536Z"
+    },
+    {
+      "id": "4fed0c35-9089-4363-b6f6-44d81a206e05",
+      "claim_id": "799bb510-32ef-4a4b-b7d1-4764c571e617",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.8,
+      "explanation": "The documentation provides comprehensive details about rate limiting for MFA verification, demonstrating strong support for preventing brute force attacks through explicit rate limit configurations.",
+      "checked_at": "2025-06-05T17:18:38.972489Z"
+    },
+    {
+      "id": "d74997ce-ded8-48f5-9a9f-1243d71dd596",
+      "claim_id": "799bb510-32ef-4a4b-b7d1-4764c571e617",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for rate limiting to prevent brute force attacks, with explicit mentions in both the implementation details and security improvements section.",
+      "checked_at": "2025-06-05T17:18:39.496773Z"
+    },
+    {
+      "id": "6fe07b2d-6759-412e-aa41-6afef4c04a46",
+      "claim_id": "4e148b81-7cfe-448d-8822-ade0a5f79d36",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for SMS-based verification with time-limited codes, with explicit mention of SMS code expiration and technical implementation details",
+      "checked_at": "2025-06-05T17:18:39.862352Z"
+    },
+    {
+      "id": "698ee0ff-8ec7-4a64-b6af-11f142aa92a9",
+      "claim_id": "4e148b81-7cfe-448d-8822-ade0a5f79d36",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong support for SMS-based verification with time-limited codes, demonstrating a comprehensive implementation of the claimed functionality",
+      "checked_at": "2025-06-05T17:18:46.351245Z"
+    },
+    {
+      "id": "16553a86-5ba6-4bce-a084-129a66766304",
+      "claim_id": "4e148b81-7cfe-448d-8822-ade0a5f79d36",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides comprehensive support for SMS-based verification with time-limited codes, demonstrating strong alignment across multiple evaluation dimensions",
+      "checked_at": "2025-06-05T17:18:46.325559Z"
+    },
+    {
+      "id": "dc8acb7a-d47a-4126-ada7-5787fcbff334",
+      "claim_id": "4e148b81-7cfe-448d-8822-ade0a5f79d36",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.3,
+      "explanation": "The evidence does not support SMS-based verification with time-limited codes. The commit focuses on TOTP-based multi-factor authentication and explicitly lists SMS-based MFA as a TODO item.",
+      "checked_at": "2025-06-05T17:18:46.504397Z"
+    },
+    {
+      "id": "68eb62c3-6878-47ae-94dd-6b245b5d4bb3",
+      "claim_id": "8b37da34-0c5b-4bc3-8f41-f618ee80e24a",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.8,
+      "explanation": "The evidence provides strong support for backup code generation, with specific requirements and context for the feature",
+      "checked_at": "2025-06-05T17:18:47.656034Z"
+    },
+    {
+      "id": "57e6b417-a15f-417d-bef4-95a4baaa6332",
+      "claim_id": "8b37da34-0c5b-4bc3-8f41-f618ee80e24a",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides comprehensive support for generating and securely storing backup recovery codes",
+      "checked_at": "2025-06-05T17:19:07.377674Z"
+    },
+    {
+      "id": "ef0ba045-ed8d-4eb3-b49a-6e303bac8cef",
+      "claim_id": "8b37da34-0c5b-4bc3-8f41-f618ee80e24a",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for generating and securely storing backup recovery codes, with explicit documentation and implementation details demonstrating the functionality.",
+      "checked_at": "2025-06-05T17:18:53.908171Z"
+    },
+    {
+      "id": "5a610dea-3b7b-495b-8721-5c473c65e33a",
+      "claim_id": "8b37da34-0c5b-4bc3-8f41-f618ee80e24a",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for generating backup recovery codes, with clear indications of implementation and security considerations",
+      "checked_at": "2025-06-05T17:18:52.958423Z"
+    },
+    {
+      "id": "0f17ddb6-3988-447e-a0e5-cd676fbc3f78",
+      "claim_id": "84a722a0-8030-4167-8b79-01d788c51332",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.8,
+      "explanation": "The evidence provides strong support for securely encrypting and storing authentication secrets, with explicit security considerations and requirements around MFA secret storage.",
+      "checked_at": "2025-06-05T17:18:52.627430Z"
+    },
+    {
+      "id": "8242c436-a131-4dfa-93c3-78abbec5542c",
+      "claim_id": "84a722a0-8030-4167-8b79-01d788c51332",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.3,
+      "explanation": "The evidence does not directly support the claim of 'Encrypts and securely stores authentication secrets'. While the test suite covers multiple authentication scenarios, there are no explicit tests or implementations showing encryption or secure storage of secrets.",
+      "checked_at": "2025-06-05T17:18:56.261013Z"
+    },
+    {
+      "id": "024e37f1-1fc2-4be9-9717-b71ad5eb4c86",
+      "claim_id": "84a722a0-8030-4167-8b79-01d788c51332",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The documentation provides strong evidence of secret encryption and secure storage, with explicit mentions of encryption and security practices for authentication secrets",
+      "checked_at": "2025-06-05T17:19:01.901454Z"
+    },
+    {
+      "id": "d3ed4d20-18dc-490e-b2b3-2082557724a1",
+      "claim_id": "84a722a0-8030-4167-8b79-01d788c51332",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.9,
+      "explanation": "The evidence provides strong, direct support for encrypting and securely storing authentication secrets, with explicit references to encryption and security practices for TOTP secrets.",
+      "checked_at": "2025-06-05T17:19:01.614933Z"
+    },
+    {
+      "id": "1b772a64-8f30-403e-8ff8-fbfb4aa4df5c",
+      "claim_id": "f8f3e4fb-55e5-4059-8f76-cd0b567c2e76",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.8,
+      "explanation": "The evidence provides strong indirect support for authentication event logging, with explicit mention of audit logging in the security requirements and acceptance criteria.",
+      "checked_at": "2025-06-05T17:19:02.572691Z"
+    },
+    {
+      "id": "c4339ecf-863b-44ad-bb43-eb0aa73fe17c",
+      "claim_id": "f8f3e4fb-55e5-4059-8f76-cd0b567c2e76",
+      "evidence_artifact_id": "4753a792-e0ca-4ac2-a2d5-2d10c47fdad5",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for authentication event logging, particularly through the test_mfa_audit_logging test case which demonstrates logging of MFA-related security events.",
+      "checked_at": "2025-06-05T17:19:05.919070Z"
+    },
+    {
+      "id": "7c905be4-df25-4292-8d25-aa7ce01fed98",
+      "claim_id": "f8f3e4fb-55e5-4059-8f76-cd0b567c2e76",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.8,
+      "explanation": "The documentation provides strong evidence of logging authentication events, with comprehensive details about MFA verification logging and security monitoring",
+      "checked_at": "2025-06-05T17:19:08.630362Z"
+    },
+    {
+      "id": "23355776-968a-403e-a5e7-c16e302a285b",
+      "claim_id": "f8f3e4fb-55e5-4059-8f76-cd0b567c2e76",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.85,
+      "explanation": "The evidence provides strong support for logging authentication events, with explicit mentions of audit logging and comprehensive security monitoring capabilities",
+      "checked_at": "2025-06-05T17:19:08.759364Z"
+    },
+    {
+      "id": "03052b25-96bb-476d-b96a-9d14fc192781",
+      "claim_id": "da8ae93d-aa10-4334-946a-95bc63dcc47d",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.4,
+      "explanation": "The evidence artifact provides general context about MFA and TOTP implementation, but does not directly confirm the specific claim about 52-character Base32 encoded secret generation",
+      "checked_at": "2025-06-05T17:19:09.602302Z"
+    },
+    {
+      "id": "cf8e32e4-6466-42d2-90bc-a96141dd75b0",
+      "claim_id": "da8ae93d-aa10-4334-946a-95bc63dcc47d",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.6,
+      "explanation": "Partial support for the claim, with some evidence suggesting alignment but not a complete match",
+      "checked_at": "2025-06-05T17:19:15.720434Z"
+    },
+    {
+      "id": "ad27b654-3294-47e0-83d7-19099e64e248",
+      "claim_id": "da8ae93d-aa10-4334-946a-95bc63dcc47d",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.5,
+      "explanation": "The documentation provides partial support for the TOTP secret generation claim. While it references TOTP secrets, it does not explicitly confirm the 52-character Base32 encoded length.",
+      "checked_at": "2025-06-05T17:19:18.717828Z"
+    },
+    {
+      "id": "b55df18d-6a9d-459a-af1a-4e283f5e4b54",
+      "claim_id": "da8ae93d-aa10-4334-946a-95bc63dcc47d",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.5,
+      "explanation": "The evidence provides partial, indirect support for the claim about TOTP secret generation. While the commit message discusses TOTP implementation, it lacks explicit confirmation of the 52-character Base32 encoded secret length.",
+      "checked_at": "2025-06-05T17:19:17.280Z"
+    },
+    {
+      "id": "8553af1a-0674-4a37-827e-5567412d05cf",
+      "claim_id": "146e9b39-6b32-41db-94e4-ff80208aac35",
+      "evidence_artifact_id": "eaa7cde2-54b1-4d78-abdc-543896e7ef1e",
+      "alignment_score": 0.6,
+      "explanation": "The evidence artifact provides partial context for TOTP verification but lacks direct implementation details for the specific claim about verification success",
+      "checked_at": "2025-06-05T17:19:15.338251Z"
+    },
+    {
+      "id": "db60120e-9382-4859-8c1e-34adadc9058b",
+      "claim_id": "146e9b39-6b32-41db-94e4-ff80208aac35",
+      "evidence_artifact_id": "f9b6d4e8-bbf0-467a-b848-71a7b6f50eb9",
+      "alignment_score": 0.95,
+      "explanation": "The evidence provides strong, direct support for the TOTP verification claim through a comprehensive implementation of TOTP verification logic",
+      "checked_at": "2025-06-05T17:19:35.915352Z"
+    },
+    {
+      "id": "192c5324-1b9c-4e5d-8d73-b3a8ec091721",
+      "claim_id": "146e9b39-6b32-41db-94e4-ff80208aac35",
+      "evidence_artifact_id": "0236c05f-0a5c-4e81-adea-436f99a914f4",
+      "alignment_score": 0.85,
+      "explanation": "The documentation provides strong, comprehensive support for TOTP verification functionality, demonstrating clear alignment with the claim about successful TOTP code verification.",
+      "checked_at": "2025-06-05T17:19:23.877796Z"
+    },
+    {
+      "id": "6bd5c33f-6c43-454c-878b-2e447f4599a2",
+      "claim_id": "146e9b39-6b32-41db-94e4-ff80208aac35",
+      "evidence_artifact_id": "34ea0422-92d0-4cf8-9c77-b663c119f1ae",
+      "alignment_score": 0.7,
+      "explanation": "The evidence provides moderate support for the TOTP verification claim, with strong indications of TOTP implementation but lacking direct test evidence",
+      "checked_at": "2025-06-05T17:19:24.893613Z"
+    }
+  ],
+  "analysis_summary": {
+    "total_claims": 49,
+    "total_alignments": 196,
+    "alignments_checked": 98,
+    "alignment_limit_reached": true,
+    "average_alignment_score": 0.7571428571428571,
+    "strong_alignments_count": 73,
+    "moderate_alignments_count": 17,
+    "weak_alignments_count": 8
+  },
+  "timestamp": "2025-06-05T17:20:28.947495Z"
+}

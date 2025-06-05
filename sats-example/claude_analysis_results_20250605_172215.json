@@ -1,0 +1,534 @@
+{
+  "artifacts": [
+    {
+      "id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "artifact_type": "Ticket",
+      "content": "\n# Feature Request: Multi-Factor Authentication (MFA)\n\n## Description\nWe need to implement multi-factor authentication to enhance security for user accounts. This should support both SMS and authenticator app-based TOTP.\n\n## Acceptance Criteria\n- [ ] Users can enable/disable MFA in their account settings\n- [ ] Support SMS-based verification codes\n- [ ] Support TOTP authenticator apps (Google Authenticator, Authy, etc.)\n- [ ] Backup codes generation for account recovery\n- [ ] Rate limiting on MFA verification attempts\n- [ ] Audit logging for all MFA events\n- [ ] Graceful fallback if MFA service is unavailable\n\n## Technical Requirements\n- Must integrate with existing JWT authentication\n- Should work with current user session management\n- Need secure storage for MFA secrets\n- Rate limiting: max 5 attempts per 5 minutes\n- Backup codes: 10 single-use codes per user\n\n## Security Considerations\n- MFA secrets must be encrypted at rest\n- SMS codes expire after 5 minutes\n- TOTP codes have 30-second windows\n- Failed attempts should be logged and monitored\n",
+      "location": {
+        "Ticket": {
+          "system": "GitHub",
+          "id": "1247"
+        }
+      },
+      "created_at": "2025-05-22T17:21:40.442295Z",
+      "author": "security-team@company.com",
+      "metadata": {
+        "labels": "security,authentication",
+        "priority": "high"
+      }
+    },
+    {
+      "id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "artifact_type": "Code",
+      "content": "\nuse crypto::{AES256, HMAC_SHA256};\nuse std::time::{SystemTime, UNIX_EPOCH};\n\n/// Multi-Factor Authentication manager\npub struct MfaManager {\n    secret_key: Vec<u8>,\n    sms_client: SmsClient,\n    rate_limiter: RateLimiter,\n}\n\nimpl MfaManager {\n    /// Generate TOTP secret for a user\n    pub fn generate_totp_secret(&self, user_id: &str) -> Result<String, MfaError> {\n        info!(\"Generating TOTP secret for user: {}\", user_id);\n        \n        let secret = self.generate_random_secret(32)?;\n        let encrypted_secret = self.encrypt_secret(&secret)?;\n        \n        // Store encrypted secret in database\n        self.store_user_secret(user_id, &encrypted_secret)?;\n        \n        Ok(base32::encode(&secret))\n    }\n\n    /// Verify TOTP code from authenticator app  \n    pub fn verify_totp(&self, user_id: &str, code: &str) -> Result<bool, MfaError> {\n        info!(\"Verifying TOTP code for user: {}\", user_id);\n        \n        // Check rate limiting first\n        if !self.rate_limiter.allow_request(user_id) {\n            warn!(\"Rate limit exceeded for user: {}\", user_id);\n            return Err(MfaError::RateLimitExceeded);\n        }\n\n        let encrypted_secret = self.get_user_secret(user_id)?;\n        let secret = self.decrypt_secret(&encrypted_secret)?;\n        \n        // TOTP verification with 30-second window tolerance\n        let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?;\n        let time_steps = current_time.as_secs() / 30;\n        \n        // Check current window and ±1 window for clock skew\n        for step in [time_steps.wrapping_sub(1), time_steps, time_steps + 1] {\n            if self.generate_totp(&secret, step)? == code {\n                self.log_mfa_event(user_id, \"totp_success\");\n                return Ok(true);\n            }\n        }\n        \n        self.log_mfa_event(user_id, \"totp_failure\");\n        Ok(false)\n    }\n\n    /// Send SMS verification code\n    pub async fn send_sms_code(&self, user_id: &str, phone: &str) -> Result<(), MfaError> {\n        info!(\"Sending SMS code to user: {}\", user_id);\n        \n        if !self.rate_limiter.allow_request(user_id) {\n            return Err(MfaError::RateLimitExceeded);\n        }\n\n        let code = self.generate_sms_code();\n        let expires_at = chrono::Utc::now() + chrono::Duration::minutes(5);\n        \n        // Store code with expiration\n        self.store_sms_code(user_id, &code, expires_at)?;\n        \n        // Send via SMS service\n        self.sms_client.send_message(phone, &format!(\"Your verification code: {}\", code)).await?;\n        \n        self.log_mfa_event(user_id, \"sms_sent\");\n        Ok(())\n    }\n\n    /// Generate backup recovery codes\n    pub fn generate_backup_codes(&self, user_id: &str) -> Result<Vec<String>, MfaError> {\n        info!(\"Generating backup codes for user: {}\", user_id);\n        \n        let mut codes = Vec::new();\n        for _ in 0..10 {\n            codes.push(self.generate_backup_code()?);\n        }\n        \n        // Store hashed versions of codes\n        let hashed_codes: Vec<_> = codes.iter()\n            .map(|code| self.hash_backup_code(code))\n            .collect::<Result<Vec<_>, _>>()?;\n        \n        self.store_backup_codes(user_id, &hashed_codes)?;\n        self.log_mfa_event(user_id, \"backup_codes_generated\");\n        \n        Ok(codes)\n    }\n}\n",
+      "location": {
+        "File": {
+          "path": "src/auth/mfa.rs",
+          "line_range": [
+            1,
+            85
+          ]
+        }
+      },
+      "created_at": "2025-05-29T17:21:40.442613Z",
+      "author": "alice@company.com",
+      "metadata": {}
+    },
+    {
+      "id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "artifact_type": "Test",
+      "content": "\n#[cfg(test)]\nmod mfa_tests {\n    use super::*;\n    use tokio_test;\n\n    #[tokio::test]\n    async fn test_totp_generation_and_verification() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_123\";\n        \n        // Generate TOTP secret\n        let secret = mfa.generate_totp_secret(user_id).unwrap();\n        assert_eq!(secret.len(), 52); // Base32 encoded 32-byte secret\n        \n        // Generate a TOTP code using the secret\n        let totp_code = generate_test_totp(&secret);\n        \n        // Verify the code\n        let result = mfa.verify_totp(user_id, &totp_code).unwrap();\n        assert!(result, \"TOTP verification should succeed\");\n        \n        // Test invalid code\n        let invalid_result = mfa.verify_totp(user_id, \"000000\").unwrap();\n        assert!(!invalid_result, \"Invalid TOTP should fail\");\n    }\n\n    #[tokio::test]\n    async fn test_sms_code_flow() {\n        let mut mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_456\";\n        let phone = \"+1234567890\";\n        \n        // Send SMS code\n        mfa.send_sms_code(user_id, phone).await.unwrap();\n        \n        // Verify the code was stored\n        let stored_code = mfa.get_stored_sms_code(user_id).unwrap();\n        assert!(stored_code.is_some());\n        \n        // Test verification\n        let code = stored_code.unwrap();\n        let result = mfa.verify_sms_code(user_id, &code).unwrap();\n        assert!(result, \"SMS code verification should succeed\");\n        \n        // Code should be consumed after use\n        let second_result = mfa.verify_sms_code(user_id, &code).unwrap();\n        assert!(!second_result, \"SMS code should only work once\");\n    }\n\n    #[tokio::test]\n    async fn test_rate_limiting() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_789\";\n        \n        // Make 5 failed attempts (should succeed)\n        for i in 0..5 {\n            let result = mfa.verify_totp(user_id, \"000000\");\n            assert!(result.is_ok(), \"Attempt {} should be allowed\", i + 1);\n        }\n        \n        // 6th attempt should be rate limited\n        let result = mfa.verify_totp(user_id, \"000000\");\n        assert!(matches!(result, Err(MfaError::RateLimitExceeded)));\n    }\n\n    #[test]\n    fn test_backup_codes_generation() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_backup\";\n        \n        let codes = mfa.generate_backup_codes(user_id).unwrap();\n        \n        // Should generate exactly 10 codes\n        assert_eq!(codes.len(), 10);\n        \n        // Each code should be unique\n        let unique_codes: std::collections::HashSet<_> = codes.iter().collect();\n        assert_eq!(unique_codes.len(), 10);\n        \n        // Codes should be 8 characters long\n        for code in &codes {\n            assert_eq!(code.len(), 8);\n        }\n    }\n\n    #[tokio::test]\n    async fn test_mfa_audit_logging() {\n        let mfa = MfaManager::new_for_testing();\n        let user_id = \"test_user_audit\";\n        \n        // Generate secret (should log event)\n        mfa.generate_totp_secret(user_id).unwrap();\n        \n        // Failed verification (should log event)\n        mfa.verify_totp(user_id, \"000000\").unwrap();\n        \n        // Check audit logs\n        let logs = mfa.get_audit_logs(user_id);\n        assert!(logs.len() >= 2);\n        assert!(logs.iter().any(|log| log.event_type == \"totp_secret_generated\"));\n        assert!(logs.iter().any(|log| log.event_type == \"totp_failure\"));\n    }\n\n    // TODO: Test SMS service failover\n    // TODO: Test encryption/decryption of secrets\n    // TODO: Test backup code verification and consumption\n    // TODO: Test concurrent rate limiting\n}\n",
+      "location": {
+        "File": {
+          "path": "tests/auth/test_mfa.rs",
+          "line_range": [
+            1,
+            95
+          ]
+        }
+      },
+      "created_at": "2025-05-31T17:21:40.442621Z",
+      "author": "alice@company.com",
+      "metadata": {}
+    },
+    {
+      "id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "artifact_type": "Documentation",
+      "content": "\n# Multi-Factor Authentication API\n\n## Overview\n\nOur MFA system provides additional security for user accounts through SMS and TOTP-based verification.\n\n## Setup Endpoints\n\n### POST /api/v1/mfa/totp/setup\nGenerates a TOTP secret for the authenticated user.\n\n**Response:**\n```json\n{\n  \"secret\": \"JBSWY3DPEHPK3PXP\",\n  \"qr_code\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...\",\n  \"backup_codes\": [\"12345678\", \"87654321\", ...]\n}\n```\n\n### POST /api/v1/mfa/sms/setup\nEnables SMS-based MFA for a phone number.\n\n**Request:**\n```json\n{\n  \"phone_number\": \"+1234567890\"\n}\n```\n\n## Verification Endpoints\n\n### POST /api/v1/mfa/verify\nVerifies an MFA code during login.\n\n**Request:**\n```json\n{\n  \"type\": \"totp\",  // or \"sms\" or \"backup\"\n  \"code\": \"123456\",\n  \"user_id\": \"user123\"\n}\n```\n\n**Response:**\n```json\n{\n  \"valid\": true,\n  \"remaining_attempts\": 4\n}\n```\n\n## Rate Limiting\n\n- **TOTP/SMS verification**: 5 attempts per 5 minutes per user\n- **SMS sending**: 3 SMS per hour per phone number\n- **Backup codes**: 3 attempts per hour per user\n\nRate limit exceeded responses return HTTP 429 with:\n```json\n{\n  \"error\": \"rate_limit_exceeded\",\n  \"retry_after\": 300\n}\n```\n\n## Security Features\n\n✅ **Implemented:**\n- TOTP secrets encrypted at rest using AES-256\n- SMS codes expire after 5 minutes\n- TOTP codes accept ±30 seconds for clock skew\n- Comprehensive audit logging\n- Backup codes for account recovery\n\n⚠️ **Partial Implementation:**\n- Rate limiting (basic implementation, needs refinement)\n- SMS service fallback (single provider only)\n\n❌ **Not Yet Implemented:**\n- Hardware security key support (FIDO2/WebAuthn)\n- Admin override capabilities\n- Bulk MFA operations for enterprise customers\n\n## Error Codes\n\n| Code | Description |\n|------|-------------|\n| `invalid_code` | The provided MFA code is incorrect |\n| `expired_code` | The code has expired (SMS only) |\n| `rate_limit_exceeded` | Too many verification attempts |\n| `mfa_not_enabled` | User has not set up MFA |\n| `service_unavailable` | MFA service temporarily unavailable |\n\n## Integration Example\n\n```javascript\n// Enable TOTP for user\nconst setupResponse = await fetch('/api/v1/mfa/totp/setup', {\n  method: 'POST',\n  headers: {\n    'Authorization': `Bearer ${userToken}`,\n    'Content-Type': 'application/json'\n  }\n});\n\nconst { secret, qr_code, backup_codes } = await setupResponse.json();\n\n// Show QR code to user for scanning with authenticator app\ndisplayQRCode(qr_code);\n\n// Store backup codes securely\nsecurelyStoreBackupCodes(backup_codes);\n```\n",
+      "location": {
+        "File": {
+          "path": "docs/api/mfa.md",
+          "line_range": null
+        }
+      },
+      "created_at": "2025-06-02T17:21:40.442626Z",
+      "author": "docs-team@company.com",
+      "metadata": {}
+    },
+    {
+      "id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "artifact_type": "Commit",
+      "content": "\nfeat(auth): implement TOTP-based multi-factor authentication\n\n- Add MfaManager with TOTP secret generation and verification\n- Implement rate limiting for MFA verification attempts (5 per 5 minutes)\n- Add encrypted storage for TOTP secrets using AES-256\n- Support ±30 second window for TOTP verification to handle clock skew\n- Add comprehensive audit logging for all MFA events\n- Generate 10 single-use backup codes for account recovery\n\nSecurity improvements:\n- All MFA secrets are encrypted at rest\n- Rate limiting prevents brute force attacks\n- Audit logs provide security monitoring capabilities\n\nStill TODO:\n- SMS-based MFA implementation\n- Hardware security key support\n- Admin override capabilities\n\nResolves: #1247\nCo-authored-by: Security Team <security@company.com>\n",
+      "location": {
+        "Commit": {
+          "hash": "a7b3c9d2e1f4567890abcdef1234567890abcdef",
+          "file_path": "src/auth/mfa.rs"
+        }
+      },
+      "created_at": "2025-06-03T17:21:40.442631Z",
+      "author": "alice@company.com",
+      "metadata": {
+        "branch": "feature/mfa-implementation",
+        "lines_added": "145",
+        "lines_removed": "0"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "d5123526-46a4-42e3-9bde-6cb3c0b1137e",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "Users can enable and disable multi-factor authentication in account settings",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Users can enable/disable MFA in their account settings",
+      "extracted_at": "2025-06-05T17:22:07.604480Z"
+    },
+    {
+      "id": "0718a4c0-6892-45dd-97b5-2ed9c9782b37",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "System must support SMS-based verification codes for MFA",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Support SMS-based verification codes",
+      "extracted_at": "2025-06-05T17:22:07.604493Z"
+    },
+    {
+      "id": "114bc9ba-32cd-4222-8ec7-355fe1f9acf2",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "System must support TOTP authenticator apps for MFA",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Support TOTP authenticator apps (Google Authenticator, Authy, etc.)",
+      "extracted_at": "2025-06-05T17:22:07.604496Z"
+    },
+    {
+      "id": "24e78dfc-523c-431a-9bd1-4c39807830b9",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "System must generate backup codes for account recovery",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Backup codes generation for account recovery",
+      "extracted_at": "2025-06-05T17:22:07.604498Z"
+    },
+    {
+      "id": "e4b57361-e381-4fde-b1e9-b76b723a90ab",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "MFA verification attempts must be rate limited",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Rate limiting on MFA verification attempts",
+      "extracted_at": "2025-06-05T17:22:07.604501Z"
+    },
+    {
+      "id": "f6944772-e644-43b5-97db-cacdbfaa530c",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "All MFA events must be logged for audit purposes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Audit logging for all MFA events",
+      "extracted_at": "2025-06-05T17:22:07.604505Z"
+    },
+    {
+      "id": "979b2b26-54b2-418f-af8b-16e371868902",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "System must gracefully handle MFA service unavailability",
+      "extraction_confidence": 0.9,
+      "claim_type": "Behavior",
+      "source_excerpt": "Graceful fallback if MFA service is unavailable",
+      "extracted_at": "2025-06-05T17:22:07.604508Z"
+    },
+    {
+      "id": "ba1c3c4c-c9ee-42b0-adb6-e647ae080d9d",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "MFA must integrate with existing JWT authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Structure",
+      "source_excerpt": "Must integrate with existing JWT authentication",
+      "extracted_at": "2025-06-05T17:22:07.604510Z"
+    },
+    {
+      "id": "386e553f-ffc6-45ed-a0b1-01cb956bc06a",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "Rate limiting allows maximum 5 MFA verification attempts per 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Rate limiting: max 5 attempts per 5 minutes",
+      "extracted_at": "2025-06-05T17:22:07.604513Z"
+    },
+    {
+      "id": "47a5c3f1-b82b-44db-a311-ca4f1e1e2764",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "Each user will have 10 single-use backup codes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Backup codes: 10 single-use codes per user",
+      "extracted_at": "2025-06-05T17:22:07.604517Z"
+    },
+    {
+      "id": "feffc10d-e8d7-4fb6-a892-cd9a54834f2b",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "MFA secrets must be encrypted when stored",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "MFA secrets must be encrypted at rest",
+      "extracted_at": "2025-06-05T17:22:07.604519Z"
+    },
+    {
+      "id": "5f4b40e1-0084-4227-b604-1bd65cc68ffa",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "SMS verification codes expire after 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "SMS codes expire after 5 minutes",
+      "extracted_at": "2025-06-05T17:22:07.604522Z"
+    },
+    {
+      "id": "4bcb8a5c-6166-4124-a402-24be2f6ccd24",
+      "artifact_id": "92e36317-1506-4a0b-a0da-6806ee0cc71e",
+      "statement": "TOTP codes have a 30-second validity window",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "TOTP codes have 30-second windows",
+      "extracted_at": "2025-06-05T17:22:07.604524Z"
+    },
+    {
+      "id": "14189173-b0b1-4506-8254-a16372d89b47",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "Manages multi-factor authentication with TOTP, SMS, and backup code mechanisms",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "pub struct MfaManager",
+      "extracted_at": "2025-06-05T17:22:08.012916Z"
+    },
+    {
+      "id": "f52a07d8-99a3-4395-9111-7873826f2ee6",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "Generates secure TOTP secrets with 32-byte random secret",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "let secret = self.generate_random_secret(32)?",
+      "extracted_at": "2025-06-05T17:22:08.012932Z"
+    },
+    {
+      "id": "d34ff10f-5b96-4097-87f2-e2001d0dc7c9",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "Encrypts and stores TOTP secrets securely",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "let encrypted_secret = self.encrypt_secret(&secret)?",
+      "extracted_at": "2025-06-05T17:22:08.012939Z"
+    },
+    {
+      "id": "3fa40a6b-5510-42d5-9188-5c7cec615610",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "Implements rate limiting to prevent brute force attacks",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "if !self.rate_limiter.allow_request(user_id)",
+      "extracted_at": "2025-06-05T17:22:08.012946Z"
+    },
+    {
+      "id": "034c959f-6038-4069-977c-148a572af185",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "TOTP verification supports ±1 time step window for clock synchronization",
+      "extraction_confidence": 0.8,
+      "claim_type": "Behavior",
+      "source_excerpt": "for step in [time_steps.wrapping_sub(1), time_steps, time_steps + 1]",
+      "extracted_at": "2025-06-05T17:22:08.012953Z"
+    },
+    {
+      "id": "37823b55-3b35-4fd1-8af3-ccb4d028f409",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "Generates 10 backup recovery codes for account recovery",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "for _ in 0..10 { codes.push(self.generate_backup_code()?) }",
+      "extracted_at": "2025-06-05T17:22:08.012963Z"
+    },
+    {
+      "id": "3a2e00f7-a54e-4a0e-bb06-06143c9b8176",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "Stores hashed backup codes instead of plaintext",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "let hashed_codes: Vec<_> = codes.iter().map(|code| self.hash_backup_code(code))",
+      "extracted_at": "2025-06-05T17:22:08.012969Z"
+    },
+    {
+      "id": "6f4cab1f-d04a-4be6-ad83-650f6bb3c389",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "SMS verification codes expire after 5 minutes",
+      "extraction_confidence": 0.9,
+      "claim_type": "Behavior",
+      "source_excerpt": "let expires_at = chrono::Utc::now() + chrono::Duration::minutes(5)",
+      "extracted_at": "2025-06-05T17:22:08.012976Z"
+    },
+    {
+      "id": "22efe798-4af4-4e29-952d-ea357092dfff",
+      "artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "statement": "Logs multi-factor authentication events for audit purposes",
+      "extraction_confidence": 0.8,
+      "claim_type": "Functional",
+      "source_excerpt": "self.log_mfa_event(user_id, \"totp_success\")",
+      "extracted_at": "2025-06-05T17:22:08.012983Z"
+    },
+    {
+      "id": "e41dbaa4-abe4-4434-bbba-19b64f829f35",
+      "artifact_id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "statement": "TOTP secret generation produces a 52-character base32 encoded secret",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "let secret = mfa.generate_totp_secret(user_id).unwrap(); assert_eq!(secret.len(), 52);",
+      "extracted_at": "2025-06-05T17:22:05.089974Z"
+    },
+    {
+      "id": "61e4804c-71c3-43e4-8802-d08358c744ea",
+      "artifact_id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "statement": "TOTP verification supports valid and invalid code scenarios",
+      "extraction_confidence": 1.0,
+      "claim_type": "Behavior",
+      "source_excerpt": "let result = mfa.verify_totp(user_id, &totp_code).unwrap(); assert!(result, \"TOTP verification should succeed\"); let invalid_result = mfa.verify_totp(user_id, \"000000\").unwrap(); assert!(!invalid_result, \"Invalid TOTP should fail\");",
+      "extracted_at": "2025-06-05T17:22:05.089989Z"
+    },
+    {
+      "id": "55c67244-6f6a-44e6-8012-c07153c48049",
+      "artifact_id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "statement": "SMS code can only be verified once",
+      "extraction_confidence": 1.0,
+      "claim_type": "Behavior",
+      "source_excerpt": "let second_result = mfa.verify_sms_code(user_id, &code).unwrap(); assert!(!second_result, \"SMS code should only work once\");",
+      "extracted_at": "2025-06-05T17:22:05.089993Z"
+    },
+    {
+      "id": "21165048-784b-4f37-b510-4a277df26412",
+      "artifact_id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "statement": "MFA system implements rate limiting for verification attempts",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "for i in 0..5 { let result = mfa.verify_totp(user_id, \"000000\"); assert!(result.is_ok(), \"Attempt {} should be allowed\", i + 1); } let result = mfa.verify_totp(user_id, \"000000\"); assert!(matches!(result, Err(MfaError::RateLimitExceeded)));",
+      "extracted_at": "2025-06-05T17:22:05.089997Z"
+    },
+    {
+      "id": "ac339bef-0ca7-491a-8c32-f5ac5fac3128",
+      "artifact_id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "statement": "Backup codes generation produces 10 unique 8-character codes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "let codes = mfa.generate_backup_codes(user_id).unwrap(); assert_eq!(codes.len(), 10); let unique_codes: std::collections::HashSet<_> = codes.iter().collect(); assert_eq!(unique_codes.len(), 10); for code in &codes { assert_eq!(code.len(), 8); }",
+      "extracted_at": "2025-06-05T17:22:05.089999Z"
+    },
+    {
+      "id": "41106d7c-796b-452f-a685-6db869df282b",
+      "artifact_id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "statement": "MFA system supports audit logging for key security events",
+      "extraction_confidence": 0.8,
+      "claim_type": "Security",
+      "source_excerpt": "let logs = mfa.get_audit_logs(user_id); assert!(logs.len() >= 2); assert!(logs.iter().any(|log| log.event_type == \"totp_secret_generated\")); assert!(logs.iter().any(|log| log.event_type == \"totp_failure\"));",
+      "extracted_at": "2025-06-05T17:22:05.090004Z"
+    },
+    {
+      "id": "3333a902-d2ef-49ba-ab5b-1d8888d02457",
+      "artifact_id": "87d80ba7-d66c-47e6-9743-62df51259b99",
+      "statement": "System supports multiple multi-factor authentication methods (TOTP, SMS, Backup Codes)",
+      "extraction_confidence": 0.9,
+      "claim_type": "Functional",
+      "source_excerpt": "test_totp_generation_and_verification(), test_sms_code_flow(), test_backup_codes_generation()",
+      "extracted_at": "2025-06-05T17:22:05.090006Z"
+    },
+    {
+      "id": "13739d02-25f9-468b-8f38-377ccbef5147",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "The system provides multi-factor authentication using TOTP and SMS methods",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Our MFA system provides additional security for user accounts through SMS and TOTP-based verification.",
+      "extracted_at": "2025-06-05T17:21:51.518062Z"
+    },
+    {
+      "id": "09908162-8e5e-431e-8203-7181e70c3e5f",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "TOTP secrets are encrypted at rest using AES-256",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "TOTP secrets encrypted at rest using AES-256",
+      "extracted_at": "2025-06-05T17:21:51.518071Z"
+    },
+    {
+      "id": "2a91f5b5-2ec1-4ef2-85d3-9c134b73a682",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "SMS codes expire after 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "SMS codes expire after 5 minutes",
+      "extracted_at": "2025-06-05T17:21:51.518073Z"
+    },
+    {
+      "id": "24204da5-8030-4641-97b2-e35bafab2637",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "TOTP verification allows ±30 seconds clock skew",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "TOTP codes accept ±30 seconds for clock skew",
+      "extracted_at": "2025-06-05T17:21:51.518076Z"
+    },
+    {
+      "id": "16695ffc-e6f2-4f7c-aa2a-58b50a84c1d4",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "Rate limiting restricts 5 verification attempts per 5 minutes per user",
+      "extraction_confidence": 0.9,
+      "claim_type": "Security",
+      "source_excerpt": "TOTP/SMS verification: 5 attempts per 5 minutes per user",
+      "extracted_at": "2025-06-05T17:21:51.518079Z"
+    },
+    {
+      "id": "ec99d20f-99b2-4e77-949f-15ff12b3fa2b",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "System provides backup codes for account recovery",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Backup codes for account recovery",
+      "extracted_at": "2025-06-05T17:21:51.518082Z"
+    },
+    {
+      "id": "17ab553c-42ac-42b4-b629-f013ea77790f",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "Hardware security key support is not yet implemented",
+      "extraction_confidence": 1.0,
+      "claim_type": "Requirement",
+      "source_excerpt": "Hardware security key support (FIDO2/WebAuthn) - Not Yet Implemented",
+      "extracted_at": "2025-06-05T17:21:51.518085Z"
+    },
+    {
+      "id": "55ea71ea-4bf1-4b1c-9bb8-507f1ad0a74e",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "SMS sending is limited to 3 SMS per hour per phone number",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "SMS sending: 3 SMS per hour per phone number",
+      "extracted_at": "2025-06-05T17:21:51.518087Z"
+    },
+    {
+      "id": "7715901a-d1bb-452b-9035-b7082082c059",
+      "artifact_id": "815762a5-7602-40be-9d61-bedd9ba7e891",
+      "statement": "The system implements comprehensive audit logging",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Comprehensive audit logging",
+      "extracted_at": "2025-06-05T17:21:51.518090Z"
+    },
+    {
+      "id": "eb17fd65-8483-4c3f-aef8-526247c4ddba",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "Implement TOTP-based multi-factor authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "feat(auth): implement TOTP-based multi-factor authentication",
+      "extracted_at": "2025-06-05T17:21:51.365669Z"
+    },
+    {
+      "id": "70403cd8-dcfe-4d74-8548-d95d3172e3d2",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "Generate TOTP secrets for multi-factor authentication",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Add MfaManager with TOTP secret generation and verification",
+      "extracted_at": "2025-06-05T17:21:51.365678Z"
+    },
+    {
+      "id": "953fccc3-653f-4b6a-af22-685ead49f544",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "Implement rate limiting of 5 MFA verification attempts per 5 minutes",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Implement rate limiting for MFA verification attempts (5 per 5 minutes)",
+      "extracted_at": "2025-06-05T17:21:51.365680Z"
+    },
+    {
+      "id": "2d902184-f8e6-446a-98e3-650a56b15937",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "Store TOTP secrets using AES-256 encryption",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Add encrypted storage for TOTP secrets using AES-256",
+      "extracted_at": "2025-06-05T17:21:51.365683Z"
+    },
+    {
+      "id": "91ac3d6f-c687-4536-ab21-608e648d5d3e",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "TOTP verification allows ±30 second time window",
+      "extraction_confidence": 1.0,
+      "claim_type": "Behavior",
+      "source_excerpt": "Support ±30 second window for TOTP verification to handle clock skew",
+      "extracted_at": "2025-06-05T17:21:51.365686Z"
+    },
+    {
+      "id": "37701c68-157d-4b1b-ad1f-46a9de9af0db",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "Comprehensive audit logging for all MFA events",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "Add comprehensive audit logging for all MFA events",
+      "extracted_at": "2025-06-05T17:21:51.365689Z"
+    },
+    {
+      "id": "60c462e8-c2cb-430d-96d6-0a22e4c092ff",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "Generate 10 single-use backup codes for account recovery",
+      "extraction_confidence": 1.0,
+      "claim_type": "Functional",
+      "source_excerpt": "Generate 10 single-use backup codes for account recovery",
+      "extracted_at": "2025-06-05T17:21:51.365691Z"
+    },
+    {
+      "id": "bc8cbc4f-8ee8-4314-8461-8ec687b17108",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "MFA secrets are encrypted at rest",
+      "extraction_confidence": 1.0,
+      "claim_type": "Security",
+      "source_excerpt": "All MFA secrets are encrypted at rest",
+      "extracted_at": "2025-06-05T17:21:51.365694Z"
+    },
+    {
+      "id": "623a502b-83cf-4dae-8061-c808b832492a",
+      "artifact_id": "4eec9902-4665-4c67-94c0-6c35b245b689",
+      "statement": "Planned future work includes SMS-based MFA, hardware security key support, and admin override",
+      "extraction_confidence": 0.8,
+      "claim_type": "Requirement",
+      "source_excerpt": "Still TODO: - SMS-based MFA implementation\n- Hardware security key support\n- Admin override capabilities",
+      "extracted_at": "2025-06-05T17:21:51.365696Z"
+    }
+  ],
+  "alignments": [
+    {
+      "id": "94d41f14-cf7c-4071-942c-e0501eea328c",
+      "claim_id": "d5123526-46a4-42e3-9bde-6cb3c0b1137e",
+      "evidence_artifact_id": "bca09d61-131d-431c-bbe2-ca5ac4515c90",
+      "alignment_score": 0.5,
+      "explanation": "The evidence provides multi-factor authentication (MFA) implementation details, but does not explicitly show user-driven enable/disable functionality for MFA in account settings",
+      "checked_at": "2025-06-05T17:22:15.294163Z"
+    }
+  ],
+  "analysis_summary": {
+    "total_claims": 47,
+    "total_alignments": 188,
+    "alignments_checked": 1,
+    "alignment_limit_reached": true,
+    "average_alignment_score": 0.5,
+    "strong_alignments_count": 0,
+    "moderate_alignments_count": 1,
+    "weak_alignments_count": 0
+  },
+  "timestamp": "2025-06-05T17:22:15.497741Z",
+  "total_execution_time_ms": 35058
+}
