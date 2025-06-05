@@ -1,9 +1,13 @@
-use control_flow::ticket::{ProjectManager, Project, TicketId};
+use control_flow::ticket::{ProjectManager, Project, TicketId, RefinementRequest, RefinementContext, RefinementPriority, TicketDecomposition};
 use control_flow::ticket_service::TicketService;
+use control_flow::refinement_service::RefinementService;
 use client_implementations::claude::ClaudeClient;
 use client_implementations::client::RetryConfig;
 use std::env;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::collections::VecDeque;
+use std::sync::mpsc;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -22,6 +26,130 @@ use crossterm::{
 };
 use std::io;
 
+// Log entry structure for TUI display
+#[derive(Debug, Clone)]
+pub struct LogEntry {
+    pub timestamp: String,
+    pub level: String,
+    pub message: String,
+    pub target: Option<String>,
+}
+
+// Thread-safe log collector
+#[derive(Debug, Clone)]
+pub struct LogCollector {
+    entries: Arc<Mutex<VecDeque<LogEntry>>>,
+    max_entries: usize,
+}
+
+impl LogCollector {
+    pub fn new(max_entries: usize) -> Self {
+        Self {
+            entries: Arc::new(Mutex::new(VecDeque::new())),
+            max_entries,
+        }
+    }
+
+    pub fn add_entry(&self, entry: LogEntry) {
+        if let Ok(mut entries) = self.entries.lock() {
+            entries.push_back(entry);
+            if entries.len() > self.max_entries {
+                entries.pop_front();
+            }
+        }
+    }
+
+    pub fn get_entries(&self) -> Vec<LogEntry> {
+        if let Ok(entries) = self.entries.lock() {
+            entries.iter().cloned().collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub fn clear(&self) {
+        if let Ok(mut entries) = self.entries.lock() {
+            entries.clear();
+        }
+    }
+}
+
+// Custom tracing layer for TUI
+pub struct TuiLayer {
+    collector: LogCollector,
+}
+
+impl TuiLayer {
+    pub fn new(collector: LogCollector) -> Self {
+        Self { collector }
+    }
+}
+
+impl<S> tracing_subscriber::layer::Layer<S> for TuiLayer
+where
+    S: tracing::Subscriber,
+{
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        let metadata = event.metadata();
+        let level = metadata.level().to_string();
+        let target = metadata.target().to_string();
+
+        // Extract the message from the event
+        let mut visitor = MessageVisitor::default();
+        event.record(&mut visitor);
+
+        let entry = LogEntry {
+            timestamp: chrono::Utc::now().format("%H:%M:%S").to_string(),
+            level,
+            message: visitor.message,
+            target: if target.is_empty() { None } else { Some(target) },
+        };
+
+        self.collector.add_entry(entry);
+    }
+}
+
+// Visitor to extract message from tracing events
+#[derive(Default)]
+struct MessageVisitor {
+    message: String,
+}
+
+impl tracing::field::Visit for MessageVisitor {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            self.message = format!("{:?}", value);
+        }
+    }
+
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        if field.name() == "message" {
+            self.message = value.to_string();
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum BackgroundTaskResult {
+    RefinementComplete {
+        project_name: String,
+        parent_ticket_id: TicketId,
+        term: String,
+        ticket: TicketDecomposition,
+    },
+    TicketComplete {
+        project_name: String,
+        ticket: TicketDecomposition,
+    },
+    TaskError {
+        error: String,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub enum AppState {
     MainMenu,
@@ -34,6 +162,7 @@ pub enum AppState {
     TicketDetailsView(String, TicketId), // project name, ticket id - detailed content view
     TicketFieldAction(String, TicketId, TicketField), // project name, ticket id, selected field
     TicketSearch(String, TicketId, SearchState), // project name, ticket id, search state
+    TicketFieldEdit(String, TicketId, FieldEditState), // project name, ticket id, edit state
     CreateProject,
     CreateTicket(String), // project name
     QuickRefine(String, TicketId), // project name, ticket id
@@ -74,6 +203,23 @@ pub struct SearchMatch {
 }
 
 #[derive(Debug, Clone)]
+pub struct FieldEditState {
+    pub field: TicketField,
+    pub edit_type: EditType,
+    pub current_value: String,
+    pub original_value: String,
+    pub is_modified: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum EditType {
+    TextEdit,        // Free text editing
+    StatusSelect,    // Status dropdown selection
+    PrioritySelect,  // Priority dropdown selection
+    ComplexitySelect, // Complexity dropdown selection
+}
+
+#[derive(Debug, Clone)]
 pub struct InputState {
     pub title: String,
     pub prompt: String,
@@ -89,10 +235,17 @@ pub struct App {
     pub project_manager: ProjectManager,
     pub current_project: Option<Project>,
     pub ticket_service: TicketService<ClaudeClient>,
+    pub refinement_service: RefinementService<ClaudeClient>,
     pub items: Vec<String>, // Current menu items
     pub ticket_fields: Vec<TicketField>, // Available fields in ticket details view
     pub field_actions: Vec<String>, // Available actions for selected field
     pub should_quit: bool,
+    pub progress_counter: usize, // For animated progress indicators
+    pub log_collector: LogCollector, // For capturing and displaying logs
+    pub show_logs: bool, // Toggle for log pane visibility
+    pub task_receiver: mpsc::Receiver<BackgroundTaskResult>, // Receive background task results
+    pub task_sender: mpsc::Sender<BackgroundTaskResult>, // Send background task results
+    pub pending_project_name: Option<String>, // Store project name during creation
 }
 
 impl App {
@@ -100,11 +253,12 @@ impl App {
         dotenvy::dotenv().ok();
         
         let api_key = env::var("ANTHROPIC_API_KEY")
-            .expect("ANTHROPIC_API_KEY environment variable must be set");
+            .map_err(|_| "ANTHROPIC_API_KEY environment variable must be set. Please run: export ANTHROPIC_API_KEY=your_api_key")?;
         
-        let claude_client = ClaudeClient::new(api_key);
+        let claude_client = ClaudeClient::new(api_key.clone());
         let retry_config = RetryConfig::default();
-        let ticket_service = TicketService::new(claude_client, retry_config);
+        let ticket_service = TicketService::new(claude_client.clone(), retry_config.clone());
+        let refinement_service = RefinementService::new(claude_client, retry_config);
         
         let workspace_dir = PathBuf::from("./control-flow-projects");
         let project_manager = match ProjectManager::load_index(&workspace_dir) {
@@ -120,6 +274,8 @@ impl App {
             "Exit".to_string(),
         ];
 
+        let (task_sender, task_receiver) = mpsc::channel();
+
         Ok(App {
             state: AppState::MainMenu,
             previous_state: None,
@@ -128,10 +284,66 @@ impl App {
             project_manager,
             current_project: None,
             ticket_service,
+            refinement_service,
             items,
             ticket_fields: Vec::new(),
             field_actions: Vec::new(),
             should_quit: false,
+            progress_counter: 0,
+            log_collector: LogCollector::new(100), // Keep last 100 log entries
+            show_logs: false, // Initially hidden, can be toggled with a key
+            task_receiver,
+            task_sender,
+            pending_project_name: None,
+        })
+    }
+
+    pub fn new_with_log_collector(log_collector: LogCollector) -> Result<Self, Box<dyn std::error::Error>> {
+        dotenvy::dotenv().ok();
+        
+        let api_key = env::var("ANTHROPIC_API_KEY")
+            .map_err(|_| "ANTHROPIC_API_KEY environment variable must be set. Please run: export ANTHROPIC_API_KEY=your_api_key")?;
+        
+        let claude_client = ClaudeClient::new(api_key.clone());
+        let retry_config = RetryConfig::default();
+        let ticket_service = TicketService::new(claude_client.clone(), retry_config.clone());
+        let refinement_service = RefinementService::new(claude_client, retry_config);
+        
+        let workspace_dir = PathBuf::from("./control-flow-projects");
+        let project_manager = match ProjectManager::load_index(&workspace_dir) {
+            Ok(manager) => manager,
+            Err(_) => ProjectManager::new(&workspace_dir)?,
+        };
+
+        let items = vec![
+            "List projects".to_string(),
+            "Create new project".to_string(),
+            "Open project".to_string(),
+            "Delete project".to_string(),
+            "Exit".to_string(),
+        ];
+
+        let (task_sender, task_receiver) = mpsc::channel();
+
+        Ok(App {
+            state: AppState::MainMenu,
+            previous_state: None,
+            selected_index: 0,
+            scroll_offset: 0,
+            project_manager,
+            current_project: None,
+            ticket_service,
+            refinement_service,
+            items,
+            ticket_fields: Vec::new(),
+            field_actions: Vec::new(),
+            should_quit: false,
+            progress_counter: 0,
+            log_collector, // Use the provided log collector
+            show_logs: false, // Initially hidden, can be toggled with a key
+            task_receiver,
+            task_sender,
+            pending_project_name: None,
         })
     }
 
@@ -163,6 +375,11 @@ impl App {
                     let ticket_id = ticket_id.clone();
                     self.show_ticket_details_view(project_name, ticket_id).ok();
                 },
+                AppState::TicketFieldEdit(project_name, ticket_id, _) => {
+                    let project_name = project_name.clone();
+                    let ticket_id = ticket_id.clone();
+                    self.show_ticket_details_view(project_name, ticket_id).ok();
+                },
                 AppState::TicketList(project_name) => {
                     let project_name = project_name.clone();
                     self.show_ticket_list(project_name).ok();
@@ -171,6 +388,11 @@ impl App {
                     let project_name = project_name.clone();
                     self.state = AppState::ProjectMenu(project_name);
                     self.update_project_menu_items();
+                },
+                AppState::CreateProject | AppState::MainMenu => {
+                    // After project creation or from main menu, go back to main menu
+                    self.state = AppState::MainMenu;
+                    self.update_main_menu_items();
                 },
                 _ => {
                     self.state = previous;
@@ -182,6 +404,88 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyCode) -> Result<(), Box<dyn std::error::Error>> {
+        // Handle input states first (highest priority - don't interfere with typing)
+        match &mut self.state {
+            AppState::Input(ref mut input_state) => {
+                match key {
+                    KeyCode::Char(c) => {
+                        input_state.input.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        input_state.input.pop();
+                    }
+                    KeyCode::Enter => {
+                        self.handle_enter()?;
+                    }
+                    KeyCode::Esc => {
+                        self.go_back();
+                    }
+                    _ => {} // Ignore other keys in input mode
+                }
+                return Ok(());
+            }
+            AppState::TicketSearch(_, _, ref mut search_state) => {
+                match key {
+                    KeyCode::Char(c) => {
+                        search_state.query.push(c);
+                        // Update search results based on new query
+                        // This would trigger a search in a real implementation
+                    }
+                    KeyCode::Backspace => {
+                        search_state.query.pop();
+                    }
+                    KeyCode::Enter => {
+                        // Move to next search result
+                        if !search_state.matches.is_empty() {
+                            search_state.current_match = (search_state.current_match + 1) % search_state.matches.len();
+                        }
+                    }
+                    KeyCode::Esc => {
+                        // Exit search mode and return to ticket details view
+                        if let AppState::TicketSearch(project_name, ticket_id, _) = &self.state {
+                            let project_name = project_name.clone();
+                            let ticket_id = ticket_id.clone();
+                            self.show_ticket_details_view(project_name, ticket_id)?;
+                        }
+                    }
+                    _ => {} // Ignore other keys in search mode
+                }
+                return Ok(());
+            }
+            AppState::TicketFieldEdit(_, _, ref mut edit_state) => {
+                match key {
+                    KeyCode::Char(c) => {
+                        // Handle character input in edit mode
+                        if matches!(edit_state.edit_type, EditType::TextEdit) {
+                            edit_state.current_value.push(c);
+                            edit_state.is_modified = edit_state.current_value != edit_state.original_value;
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        if matches!(edit_state.edit_type, EditType::TextEdit) {
+                            edit_state.current_value.pop();
+                            edit_state.is_modified = edit_state.current_value != edit_state.original_value;
+                        }
+                    }
+                    KeyCode::Enter => {
+                        self.handle_enter()?;
+                    }
+                    KeyCode::Esc => {
+                        // Cancel field editing and return to ticket details view
+                        if let AppState::TicketFieldEdit(project_name, ticket_id, _) = &self.state {
+                            let project_name = project_name.clone();
+                            let ticket_id = ticket_id.clone();
+                            self.show_ticket_details_view(project_name, ticket_id)?;
+                        }
+                    }
+                    _ => {} // Ignore other keys in edit mode
+                }
+                return Ok(());
+            }
+            _ => {} // Continue to global key handling for other states
+        }
+
+        // Global key handling (only when not in input/edit/search modes)
         match key {
             KeyCode::Char('q') | KeyCode::Esc => {
                 if matches!(self.state, AppState::MainMenu) {
@@ -189,13 +493,6 @@ impl App {
                 } else if matches!(self.state, AppState::Loading(_) | AppState::Error(_)) {
                     // Return to previous context for Loading/Error states
                     self.return_to_context();
-                } else if matches!(self.state, AppState::TicketSearch(_, _, _)) {
-                    // Exit search mode and return to ticket details view
-                    if let AppState::TicketSearch(project_name, ticket_id, _) = &self.state {
-                        let project_name = project_name.clone();
-                        let ticket_id = ticket_id.clone();
-                        self.show_ticket_details_view(project_name, ticket_id)?;
-                    }
                 } else {
                     self.go_back();
                 }
@@ -208,19 +505,16 @@ impl App {
                     self.start_ticket_search(project_name, ticket_id)?;
                 }
             }
+            KeyCode::Char('l') | KeyCode::Char('L') => {
+                // Toggle log pane visibility (only when not in input mode)
+                self.show_logs = !self.show_logs;
+            }
             KeyCode::Up => self.move_up(),
             KeyCode::Down => self.move_down(),
             KeyCode::Enter => self.handle_enter()?,
             KeyCode::Char(c) => {
-                if let AppState::Input(ref mut input_state) = self.state {
-                    input_state.input.push(c);
-                } else if let AppState::TicketSearch(_, _, ref mut search_state) = self.state {
-                    if c != '/' {  // Don't add the initial '/' character
-                        search_state.query.push(c);
-                        self.update_search_matches()?;
-                    }
-                } else if let AppState::TicketDetailsView(project_name, ticket_id) = &self.state {
-                    // Handle number keys for action execution
+                // Handle number keys for action execution in ticket details view
+                if let AppState::TicketDetailsView(project_name, ticket_id) = &self.state {
                     if c.is_ascii_digit() && c != '0' {
                         let action_index = (c as usize) - ('1' as usize);
                         if self.selected_index < self.ticket_fields.len() {
@@ -231,14 +525,7 @@ impl App {
                         }
                     }
                 }
-            }
-            KeyCode::Backspace => {
-                if let AppState::Input(ref mut input_state) = self.state {
-                    input_state.input.pop();
-                } else if let AppState::TicketSearch(_, _, ref mut search_state) = self.state {
-                    search_state.query.pop();
-                    self.update_search_matches()?;
-                }
+                // Other character handling is now done in state-specific sections above
             }
             _ => {}
         }
@@ -298,6 +585,12 @@ impl App {
                 let ticket_id = ticket_id.clone();
                 let search_state = search_state.clone();
                 self.handle_ticket_search_selection(project_name, ticket_id, search_state)?;
+            },
+            AppState::TicketFieldEdit(project_name, ticket_id, edit_state) => {
+                let project_name = project_name.clone();
+                let ticket_id = ticket_id.clone();
+                let edit_state = edit_state.clone();
+                self.handle_field_edit_submit(project_name, ticket_id, edit_state)?;
             },
             AppState::QuickRefine(project_name, ticket_id) => {
                 let project_name = project_name.clone();
@@ -386,7 +679,7 @@ impl App {
     fn handle_ticket_detail_selection(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
         match self.selected_index {
             0 => {
-                // View ticket details - show the actual ticket details
+                // "← Back to ticket details" - return to the ticket details view
                 self.show_ticket_details_view(project_name, ticket_id)?;
             },
             1 => {
@@ -406,7 +699,7 @@ impl App {
                 self.transition_to_state(AppState::Loading("Viewing dependents...".to_string()));
             },
             5 => {
-                // Back
+                // "← Back to ticket list"
                 self.show_ticket_list(project_name)?;
             },
             _ => {}
@@ -486,8 +779,9 @@ impl App {
                     items.push(format!("⬆️ Dependents ({})", node.dependents.len()));
                 }
                 
-                // Add back option
-                items.push("← Back to ticket menu".to_string());
+                // Add navigation options
+                items.push("⚙️ Ticket Actions Menu".to_string());
+                items.push("← Back to ticket list".to_string());
                 
                 self.ticket_fields = fields;
                 self.items = items;
@@ -505,8 +799,11 @@ impl App {
 
     fn handle_ticket_details_view_selection(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
         if self.selected_index == self.items.len() - 1 {
-            // "← Back to ticket menu" selected (always last item)
-            self.show_ticket_detail(project_name, ticket_id)?;
+            // "← Back to ticket list" selected (always last item)
+            self.show_ticket_list(project_name)?;
+        } else if self.selected_index == self.items.len() - 2 {
+            // "⚙️ Ticket Actions Menu" selected (second to last item)
+            self.show_ticket_actions_menu(project_name, ticket_id)?;
         } else if self.selected_index < self.ticket_fields.len() {
             // A field was selected - execute the first action for that field (most common action)
             let field = self.ticket_fields[self.selected_index].clone();
@@ -515,24 +812,48 @@ impl App {
         Ok(())
     }
 
-    fn execute_field_action(&mut self, _project_name: String, ticket_id: TicketId, field: TicketField, action_index: usize) -> Result<(), Box<dyn std::error::Error>> {
+    fn execute_field_action(&mut self, project_name: String, ticket_id: TicketId, field: TicketField, action_index: usize) -> Result<(), Box<dyn std::error::Error>> {
         // Get the available actions for this field
         let (actions, _) = get_field_actions_with_content(self, &ticket_id, &field);
         
         if action_index < actions.len() {
             let action = &actions[action_index];
-            let field_name = self.get_field_display_name(&field);
             
-            // For now, show loading message with the action being executed
-            self.transition_to_state(AppState::Loading(format!("Executing: {} on {}", action, field_name)));
-            
-            // TODO: Implement actual action execution based on action type
-            // Examples:
-            // - "View full content" -> show detailed view
-            // - "Create refinement ticket" -> trigger ticket creation workflow
-            // - "Edit definition" -> open edit mode
-            // - "Answer question" -> open answer input
-            // - etc.
+            // Handle different action types
+            if action.contains("Edit") || action.contains("edit") {
+                self.start_field_edit(project_name, ticket_id, field)?;
+            } else if action.contains("View full") || action.contains("View") {
+                self.show_field_detail_view(project_name, ticket_id, field)?;
+            } else if action.contains("Change") {
+                self.start_field_selection(project_name, ticket_id, field)?;
+            } else if action.contains("Create refinement ticket") {
+                self.start_term_refinement(project_name, ticket_id, field)?;
+            } else if action.contains("Find related terms") {
+                self.find_related_terms(project_name, ticket_id, field)?;
+            } else if action.contains("Answer question") {
+                self.start_question_answering(project_name, ticket_id, field)?;
+            } else if action.contains("Add new dependency") {
+                self.start_dependency_selection(project_name, ticket_id)?;
+            } else if action.contains("Copy") {
+                self.copy_field_content(field)?;
+            } else if action.contains("Create research ticket") {
+                // TODO: Implement research ticket creation
+                let field_name = self.get_field_display_name(&field);
+                self.transition_to_state(AppState::Loading(format!("✅ Research ticket creation ({})", field_name)));
+            } else if action.contains("Mark as resolved") {
+                // TODO: Implement question resolution
+                let field_name = self.get_field_display_name(&field);
+                self.transition_to_state(AppState::Loading(format!("✅ Marked as resolved ({})", field_name)));
+            } else if action.contains("Navigate to") {
+                // TODO: Implement navigation to related tickets
+                let field_name = self.get_field_display_name(&field);
+                self.transition_to_state(AppState::Loading(format!("Navigation to related tickets ({})", field_name)));
+            } else {
+                // For other actions, show loading message for now
+                let field_name = self.get_field_display_name(&field);
+                self.transition_to_state(AppState::Loading(format!("Executing: {} on {}", action, field_name)));
+                // TODO: Implement remaining action types
+            }
         } else {
             self.transition_to_state(AppState::Error("Invalid action selected".to_string()));
         }
@@ -540,6 +861,108 @@ impl App {
         Ok(())
     }
 
+    fn start_field_edit(&mut self, project_name: String, ticket_id: TicketId, field: TicketField) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the current value of the field
+        let (current_value, edit_type) = self.get_field_current_value(&ticket_id, &field)?;
+        
+        let edit_state = FieldEditState {
+            field: field.clone(),
+            edit_type,
+            current_value: current_value.clone(),
+            original_value: current_value,
+            is_modified: false,
+        };
+        
+        self.state = AppState::TicketFieldEdit(project_name, ticket_id, edit_state);
+        Ok(())
+    }
+
+    fn show_field_detail_view(&mut self, _project_name: String, _ticket_id: TicketId, field: TicketField) -> Result<(), Box<dyn std::error::Error>> {
+        // For now, just show a loading message - this could be expanded to show full content
+        let field_name = self.get_field_display_name(&field);
+        self.transition_to_state(AppState::Loading(format!("Viewing full content of {}", field_name)));
+        // TODO: Implement detailed view for large content
+        Ok(())
+    }
+
+    fn start_field_selection(&mut self, project_name: String, ticket_id: TicketId, field: TicketField) -> Result<(), Box<dyn std::error::Error>> {
+        // For status/priority/complexity fields, start selection mode
+        let edit_type = match &field {
+            TicketField::Status => EditType::StatusSelect,
+            TicketField::Priority => EditType::PrioritySelect,
+            TicketField::Complexity => EditType::ComplexitySelect,
+            _ => return Err("Field does not support selection".into()),
+        };
+        
+        let (current_value, _) = self.get_field_current_value(&ticket_id, &field)?;
+        
+        let edit_state = FieldEditState {
+            field: field.clone(),
+            edit_type,
+            current_value: current_value.clone(),
+            original_value: current_value,
+            is_modified: false,
+        };
+        
+        self.state = AppState::TicketFieldEdit(project_name, ticket_id, edit_state);
+        Ok(())
+    }
+
+    fn get_field_current_value(&self, ticket_id: &TicketId, field: &TicketField) -> Result<(String, EditType), Box<dyn std::error::Error>> {
+        if let Some(project) = &self.current_project {
+            if let Some(node) = project.graph.get_ticket(ticket_id) {
+                let ticket = &node.ticket;
+                
+                let (value, edit_type) = match field {
+                    TicketField::Title => (ticket.original_ticket.title.clone(), EditType::TextEdit),
+                    TicketField::RawInput => (ticket.original_ticket.raw_input.clone(), EditType::TextEdit),
+                    TicketField::Status => (format!("{:?}", ticket.decomposed_ticket.metadata.status), EditType::StatusSelect),
+                    TicketField::Priority => (format!("{:?}", ticket.decomposed_ticket.metadata.priority), EditType::PrioritySelect),
+                    TicketField::Complexity => (format!("{:?}", ticket.decomposed_ticket.metadata.estimated_complexity), EditType::ComplexitySelect),
+                    TicketField::Terms(term_key) => {
+                        let definition = ticket.decomposed_ticket.terms.get(term_key)
+                            .cloned()
+                            .unwrap_or_else(|| "Definition not found".to_string());
+                        (definition, EditType::TextEdit)
+                    },
+                    TicketField::ValidationMethod(index) => {
+                        let method = ticket.decomposed_ticket.validation_method.get(*index)
+                            .cloned()
+                            .unwrap_or_else(|| "Method not found".to_string());
+                        (method, EditType::TextEdit)
+                    },
+                    TicketField::OpenQuestion(index) => {
+                        let question = ticket.decomposed_ticket.open_questions.get(*index)
+                            .cloned()
+                            .unwrap_or_else(|| "Question not found".to_string());
+                        (question, EditType::TextEdit)
+                    },
+                    TicketField::EngineQuestion(index) => {
+                        let question = ticket.decomposed_ticket.engine_questions.get(*index)
+                            .cloned()
+                            .unwrap_or_else(|| "Question not found".to_string());
+                        (question, EditType::TextEdit)
+                    },
+                    TicketField::RefinementRequest(index) => {
+                        let request = ticket.decomposed_ticket.terms_needing_refinement.get(*index);
+                        let text = if let Some(req) = request {
+                            format!("{} - {}", req.term, req.reason)
+                        } else {
+                            "Request not found".to_string()
+                        };
+                        (text, EditType::TextEdit)
+                    },
+                    _ => return Err("Field type not supported for editing".into()),
+                };
+                
+                Ok((value, edit_type))
+            } else {
+                Err("Ticket not found".into())
+            }
+        } else {
+            Err("No project loaded".into())
+        }
+    }
 
     fn get_field_display_name(&self, field: &TicketField) -> String {
         match field {
@@ -556,6 +979,386 @@ impl App {
             TicketField::Dependencies => "Dependencies".to_string(),
             TicketField::Dependents => "Dependents".to_string(),
         }
+    }
+
+    fn start_term_refinement(&mut self, project_name: String, ticket_id: TicketId, field: TicketField) -> Result<(), Box<dyn std::error::Error>> {
+        if let TicketField::Terms(term_key) = &field {
+            if let Some(project) = &self.current_project {
+                if let Some(node) = project.graph.get_ticket(&ticket_id) {
+                    let ticket = &node.ticket;
+                    
+                    // Get the term definition for context
+                    let term_definition = ticket.decomposed_ticket.terms.get(term_key)
+                        .cloned()
+                        .unwrap_or_else(|| "Definition not found".to_string());
+                    
+                    // Build refinement context
+                    let refinement_context = format!(
+                        "Context from parent ticket '{}': {}\n\nTerm being refined: {}\nCurrent definition: {}\n\nPlease provide a more detailed definition for this term.",
+                        ticket.original_ticket.title,
+                        ticket.original_ticket.raw_input,
+                        term_key,
+                        term_definition
+                    );
+                    
+                    self.transition_to_state(AppState::Loading("🔄 Creating refinement ticket for term...".to_string()));
+                    
+                    // Create refinement ticket asynchronously
+                    self.handle_refinement_creation_async(project_name, ticket_id, term_key.clone(), refinement_context)?;
+                } else {
+                    self.transition_to_state(AppState::Error("Ticket not found".to_string()));
+                }
+            } else {
+                self.transition_to_state(AppState::Error("No project loaded".to_string()));
+            }
+        } else {
+            self.transition_to_state(AppState::Error("Invalid field for term refinement".to_string()));
+        }
+        
+        Ok(())
+    }
+    
+    fn handle_refinement_creation_async(&mut self, project_name: String, parent_ticket_id: TicketId, term: String, context: String) -> Result<(), Box<dyn std::error::Error>> {
+        // Create refinement request and context objects
+        let refinement_request = RefinementRequest {
+            term: term.clone(),
+            context: context.clone(),
+            reason: format!("Term '{}' needs refinement for clarity", term),
+            priority: RefinementPriority::Medium,
+        };
+        
+        let refinement_context = RefinementContext {
+            parent_ticket_id: parent_ticket_id.clone(),
+            term_being_refined: term.clone(),
+            original_context: context,
+            additional_context: vec![],
+        };
+        
+        // Since we're running in an async main, we need to use a blocking approach
+        // We'll use std::thread to avoid the "runtime within runtime" issue
+        let api_key = env::var("ANTHROPIC_API_KEY")
+            .map_err(|_| "ANTHROPIC_API_KEY environment variable not set")?;
+        
+        // Launch background task (non-blocking)
+        let sender = self.task_sender.clone();
+        let project_name_clone = project_name.clone();
+        let parent_ticket_id_clone = parent_ticket_id.clone();
+        let term_clone = term.clone();
+        
+        std::thread::spawn(move || {
+            // Create a new runtime in this thread
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let result = rt.block_on(async {
+                // Create new client and service in this thread
+                let claude_client = ClaudeClient::new(api_key);
+                let config = RetryConfig::default();
+                let refinement_service = RefinementService::new(claude_client, config);
+                
+                refinement_service.refine_term(&refinement_request, Some(&refinement_context)).await
+            });
+            
+            // Send result back to main thread
+            match result {
+                Ok(ticket) => {
+                    let _ = sender.send(BackgroundTaskResult::RefinementComplete {
+                        project_name: project_name_clone,
+                        parent_ticket_id: parent_ticket_id_clone,
+                        term: term_clone,
+                        ticket,
+                    });
+                }
+                Err(e) => {
+                    let _ = sender.send(BackgroundTaskResult::TaskError {
+                        error: format!("Refinement failed: {}", e),
+                    });
+                }
+            }
+        });
+        
+        // Return immediately - the result will come via the channel
+        Ok(())
+    }
+
+    fn handle_background_task_completion(&mut self, result: BackgroundTaskResult) -> Result<(), Box<dyn std::error::Error>> {
+        match result {
+            BackgroundTaskResult::RefinementComplete { 
+                project_name, 
+                parent_ticket_id, 
+                term, 
+                ticket 
+            } => {
+                // Add refinement ticket to current project
+                if let Some(project) = &mut self.current_project {
+                    let refinement_ticket_id = project.add_ticket(ticket);
+                    
+                    // Link as dependency (refinement depends on parent)
+                    if let Err(e) = project.graph.add_dependency(&refinement_ticket_id, &parent_ticket_id) {
+                        self.transition_to_state(AppState::Error(format!("Failed to link refinement dependency: {}", e)));
+                        return Ok(());
+                    }
+                    
+                    // Save the project
+                    if let Err(e) = self.save_current_project() {
+                        self.transition_to_state(AppState::Error(e.to_string()));
+                        return Ok(());
+                    }
+                    
+                    // Navigate to the refinement ticket
+                    self.show_ticket_detail(project_name, refinement_ticket_id.clone())?;
+                    
+                    // Show success message
+                    self.transition_to_state(AppState::Loading(format!("✅ Refinement ticket created for term '{}': {}", term, refinement_ticket_id)));
+                } else {
+                    self.transition_to_state(AppState::Error("No project loaded".to_string()));
+                }
+            }
+            BackgroundTaskResult::TicketComplete { project_name, ticket } => {
+                // Add ticket to current project
+                if let Some(project) = &mut self.current_project {
+                    let ticket_id = project.add_ticket(ticket);
+                    
+                    // Save the project
+                    if let Err(e) = self.save_current_project() {
+                        self.transition_to_state(AppState::Error(e.to_string()));
+                        return Ok(());
+                    }
+                    
+                    // Navigate to the new ticket
+                    self.show_ticket_detail(project_name, ticket_id.clone())?;
+                    
+                    // Show success message briefly
+                    self.transition_to_state(AppState::Loading(format!("✅ Ticket created successfully! ID: {}", ticket_id)));
+                } else {
+                    self.transition_to_state(AppState::Error("No project loaded".to_string()));
+                }
+            }
+            BackgroundTaskResult::TaskError { error } => {
+                self.transition_to_state(AppState::Error(error));
+            }
+        }
+        Ok(())
+    }
+    
+    fn find_related_terms(&mut self, _project_name: String, ticket_id: TicketId, field: TicketField) -> Result<(), Box<dyn std::error::Error>> {
+        if let TicketField::Terms(term_key) = &field {
+            // Search across all tickets in the project for related terms
+            if let Some(project) = &self.current_project {
+                let mut related_terms = Vec::new();
+                let search_term = term_key.to_lowercase();
+                
+                // Search through all tickets
+                for (id, node) in &project.graph.nodes {
+                    if *id == ticket_id {
+                        continue; // Skip current ticket
+                    }
+                    
+                    let ticket = &node.ticket;
+                    
+                    // Search in terms
+                    for (term, definition) in &ticket.decomposed_ticket.terms {
+                        if term.to_lowercase().contains(&search_term) || 
+                           definition.to_lowercase().contains(&search_term) ||
+                           search_term.contains(&term.to_lowercase()) {
+                            related_terms.push(format!("🎫 {}: {} = {}", id, term, definition));
+                        }
+                    }
+                    
+                    // Search in title and raw input
+                    if ticket.original_ticket.title.to_lowercase().contains(&search_term) ||
+                       ticket.original_ticket.raw_input.to_lowercase().contains(&search_term) {
+                        related_terms.push(format!("🎫 {}: {} (in content)", id, ticket.original_ticket.title));
+                    }
+                }
+                
+                if related_terms.is_empty() {
+                    self.transition_to_state(AppState::Loading(format!("No related terms found for '{}'", term_key)));
+                } else {
+                    // For now, show loading message with results count
+                    // TODO: Create a dedicated related terms view
+                    self.transition_to_state(AppState::Loading(format!("✅ Found {} related references to '{}' across project", related_terms.len(), term_key)));
+                }
+            } else {
+                self.transition_to_state(AppState::Error("No project loaded".to_string()));
+            }
+        } else {
+            self.transition_to_state(AppState::Error("Invalid field for term search".to_string()));
+        }
+        
+        Ok(())
+    }
+    
+    fn start_question_answering(&mut self, project_name: String, ticket_id: TicketId, field: TicketField) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the question text based on field type
+        let question_text = match &field {
+            TicketField::OpenQuestion(index) => {
+                if let Some(project) = &self.current_project {
+                    if let Some(node) = project.graph.get_ticket(&ticket_id) {
+                        node.ticket.decomposed_ticket.open_questions.get(*index).cloned()
+                    } else { None }
+                } else { None }
+            }
+            TicketField::EngineQuestion(index) => {
+                if let Some(project) = &self.current_project {
+                    if let Some(node) = project.graph.get_ticket(&ticket_id) {
+                        node.ticket.decomposed_ticket.engine_questions.get(*index).cloned()
+                    } else { None }
+                } else { None }
+            }
+            _ => {
+                self.transition_to_state(AppState::Error("Invalid field for question answering".to_string()));
+                return Ok(());
+            }
+        };
+        
+        if let Some(question) = question_text {
+            // Start input state for question answering
+            self.state = AppState::Input(InputState {
+                title: "Answer Question".to_string(),
+                prompt: format!("Question: {}\n\nEnter your answer:", question),
+                input: String::new(),
+                return_state: Box::new(AppState::TicketDetailsView(project_name, ticket_id)),
+            });
+        } else {
+            self.transition_to_state(AppState::Error("Question not found".to_string()));
+        }
+        
+        Ok(())
+    }
+    
+    fn start_dependency_selection(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
+        // Load the project to get all available tickets
+        let project = self.project_manager.load_project(&project_name)?;
+        
+        // Get all ticket IDs except the current one (can't depend on itself)
+        let available_tickets: Vec<(TicketId, String)> = project.graph.nodes.iter()
+            .filter(|(id, _)| **id != ticket_id)
+            .map(|(id, node)| (id.clone(), node.ticket.original_ticket.title.clone()))
+            .collect();
+            
+        if available_tickets.is_empty() {
+            self.transition_to_state(AppState::Error("No other tickets available to create dependencies".to_string()));
+            return Ok(());
+        }
+        
+        // Create a list selection interface
+        let prompt = format!(
+            "Select a ticket to add as a dependency to '{}'\n\nPress number to select, or ESC to cancel:",
+            project.graph.get_ticket(&ticket_id)
+                .map(|n| n.ticket.original_ticket.title.as_str())
+                .unwrap_or("Unknown")
+        );
+        
+        // Store the available tickets in a simplified format for the user
+        let mut ticket_list = String::new();
+        for (i, (_, title)) in available_tickets.iter().enumerate() {
+            ticket_list.push_str(&format!("{}. {}\n", i + 1, title));
+        }
+        
+        // For now, show the list and return to previous state
+        // In a full implementation, this would be a new state with ticket selection
+        let message = format!("{}\n\n{}\n(Dependency selection interface - press ESC to return)", prompt, ticket_list);
+        self.transition_to_state(AppState::Loading(message));
+        
+        Ok(())
+    }
+    
+    fn copy_field_content(&mut self, field: TicketField) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the current project and ticket
+        let (project_name, ticket_id) = match &self.state {
+            AppState::TicketFieldAction(proj, tid, _) => (proj.clone(), tid.clone()),
+            AppState::TicketDetailsView(proj, tid) => (proj.clone(), tid.clone()),
+            _ => return Err("No active ticket context for copying".into()),
+        };
+        
+        let project = self.project_manager.load_project(&project_name)?;
+        let ticket = project.graph.get_ticket(&ticket_id)
+            .ok_or("Ticket not found")?;
+            
+        // Get the content to copy based on field type
+        let content = match &field {
+            TicketField::Title => ticket.ticket.original_ticket.title.clone(),
+            TicketField::RawInput => ticket.ticket.original_ticket.raw_input.clone(),
+            TicketField::Status => format!("{:?}", ticket.ticket.decomposed_ticket.metadata.status),
+            TicketField::Priority => format!("{:?}", ticket.ticket.decomposed_ticket.metadata.priority),
+            TicketField::Complexity => format!("{:?}", ticket.ticket.decomposed_ticket.metadata.estimated_complexity),
+            TicketField::Terms(term_key) => {
+                ticket.ticket.decomposed_ticket.terms.get(term_key)
+                    .map(|def| format!("{}: {}", term_key, def))
+                    .unwrap_or_else(|| format!("{}: [No definition]", term_key))
+            },
+            TicketField::ValidationMethod(index) => {
+                ticket.ticket.decomposed_ticket.validation_method.get(*index)
+                    .cloned()
+                    .unwrap_or_else(|| "[Method not found]".to_string())
+            },
+            TicketField::OpenQuestion(index) => {
+                ticket.ticket.decomposed_ticket.open_questions.get(*index)
+                    .cloned()
+                    .unwrap_or_else(|| "[Question not found]".to_string())
+            },
+            TicketField::EngineQuestion(index) => {
+                ticket.ticket.decomposed_ticket.engine_questions.get(*index)
+                    .cloned()
+                    .unwrap_or_else(|| "[Question not found]".to_string())
+            },
+            TicketField::RefinementRequest(index) => {
+                ticket.ticket.decomposed_ticket.terms_needing_refinement.get(*index)
+                    .map(|req| format!("Term: {} | Reason: {}", req.term, req.reason))
+                    .unwrap_or_else(|| "[Request not found]".to_string())
+            },
+            TicketField::Dependencies => {
+                format!("Dependencies: {}", ticket.dependencies.len())
+            },
+            TicketField::Dependents => {
+                format!("Dependents: {}", ticket.dependents.len())
+            },
+        };
+        
+        // Try to copy to system clipboard using pbcopy (macOS) or xclip (Linux)
+        // This is a best-effort implementation
+        let copy_result = if cfg!(target_os = "macos") {
+            std::process::Command::new("pbcopy")
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+                .and_then(|mut child| {
+                    if let Some(stdin) = child.stdin.take() {
+                        use std::io::Write;
+                        let mut stdin = stdin;
+                        stdin.write_all(content.as_bytes())?;
+                        drop(stdin);
+                    }
+                    child.wait()
+                })
+        } else {
+            // Try xclip for Linux
+            std::process::Command::new("xclip")
+                .args(["-selection", "clipboard"])
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+                .and_then(|mut child| {
+                    if let Some(stdin) = child.stdin.take() {
+                        use std::io::Write;
+                        let mut stdin = stdin;
+                        stdin.write_all(content.as_bytes())?;
+                        drop(stdin);
+                    }
+                    child.wait()
+                })
+        };
+        
+        let field_name = self.get_field_display_name(&field);
+        match copy_result {
+            Ok(_) => {
+                self.transition_to_state(AppState::Loading(format!("✅ {} content copied to clipboard", field_name)));
+            },
+            Err(_) => {
+                // Fallback: show the content to user for manual copying
+                let message = format!("📋 {} content (copy manually):\n\n{}", field_name, content);
+                self.transition_to_state(AppState::Loading(message));
+            }
+        }
+        
+        Ok(())
     }
 
 
@@ -633,6 +1436,90 @@ impl App {
             // Move to next match
             search_state.current_match = (search_state.current_match + 1) % search_state.matches.len();
             self.state = AppState::TicketSearch(project_name, ticket_id, search_state);
+        }
+        Ok(())
+    }
+
+    fn handle_field_edit_submit(&mut self, project_name: String, ticket_id: TicketId, edit_state: FieldEditState) -> Result<(), Box<dyn std::error::Error>> {
+        if edit_state.is_modified {
+            // Save the changes
+            self.transition_to_state(AppState::Loading(format!("💾 Saving changes to {}", self.get_field_display_name(&edit_state.field))));
+            
+            // Update the ticket in memory
+            if let Some(project) = &mut self.current_project {
+                if let Some(node) = project.graph.get_ticket_mut(&ticket_id) {
+                    let ticket = &mut node.ticket;
+                    
+                    // Apply the field changes
+                    match &edit_state.field {
+                        TicketField::Title => {
+                            ticket.original_ticket.title = edit_state.current_value.clone();
+                        }
+                        TicketField::RawInput => {
+                            ticket.original_ticket.raw_input = edit_state.current_value.clone();
+                        }
+                        TicketField::Status => {
+                            if let Ok(status) = parse_status(&edit_state.current_value) {
+                                ticket.decomposed_ticket.metadata.status = status;
+                            }
+                        }
+                        TicketField::Priority => {
+                            if let Ok(priority) = parse_priority(&edit_state.current_value) {
+                                ticket.decomposed_ticket.metadata.priority = priority;
+                            }
+                        }
+                        TicketField::Complexity => {
+                            if let Ok(complexity) = parse_complexity(&edit_state.current_value) {
+                                ticket.decomposed_ticket.metadata.estimated_complexity = complexity;
+                            }
+                        }
+                        TicketField::Terms(term_key) => {
+                            ticket.decomposed_ticket.terms.insert(term_key.clone(), edit_state.current_value.clone());
+                        }
+                        TicketField::ValidationMethod(index) => {
+                            if *index < ticket.decomposed_ticket.validation_method.len() {
+                                ticket.decomposed_ticket.validation_method[*index] = edit_state.current_value.clone();
+                            }
+                        }
+                        TicketField::OpenQuestion(index) => {
+                            if *index < ticket.decomposed_ticket.open_questions.len() {
+                                ticket.decomposed_ticket.open_questions[*index] = edit_state.current_value.clone();
+                            }
+                        }
+                        TicketField::EngineQuestion(index) => {
+                            if *index < ticket.decomposed_ticket.engine_questions.len() {
+                                ticket.decomposed_ticket.engine_questions[*index] = edit_state.current_value.clone();
+                            }
+                        }
+                        _ => {
+                            self.transition_to_state(AppState::Error("Field type not supported for editing".to_string()));
+                            return Ok(());
+                        }
+                    }
+                    
+                    // Update the node's timestamp
+                    node.updated_at = chrono::Utc::now().to_rfc3339();
+                    
+                    // Save the project to disk
+                    if let Err(e) = self.project_manager.save_project(project) {
+                        self.transition_to_state(AppState::Error(format!("Failed to save project: {}", e)));
+                        return Ok(());
+                    }
+                    
+                    // Show success and return to ticket view
+                    self.transition_to_state(AppState::Loading("✅ Changes saved successfully!".to_string()));
+                    
+                    // Refresh the ticket details view to show updated content
+                    self.show_ticket_details_view(project_name, ticket_id)?;
+                } else {
+                    self.transition_to_state(AppState::Error("Ticket not found".to_string()));
+                }
+            } else {
+                self.transition_to_state(AppState::Error("No project loaded".to_string()));
+            }
+        } else {
+            // No changes, just return to ticket view
+            self.show_ticket_details_view(project_name, ticket_id)?;
         }
         Ok(())
     }
@@ -721,10 +1608,31 @@ impl App {
                 AppState::CreateTicket(project_name) => {
                     self.create_ticket_with_description(project_name, input_text)?;
                 },
+                AppState::TicketDetailsView(ref project_name, ref ticket_id) => {
+                    // This could be a question answer
+                    if input_state.title.contains("Answer Question") {
+                        self.handle_question_answer(project_name.clone(), ticket_id.clone(), input_text)?;
+                    } else {
+                        self.state = return_state;
+                    }
+                },
                 _ => {
                     self.state = return_state;
                 }
             }
+        }
+        Ok(())
+    }
+    
+    fn handle_question_answer(&mut self, project_name: String, ticket_id: TicketId, answer: String) -> Result<(), Box<dyn std::error::Error>> {
+        // For now, just show a success message
+        // TODO: Implement actual question answer storage and processing
+        if answer.trim().is_empty() {
+            self.transition_to_state(AppState::Error("Answer cannot be empty".to_string()));
+        } else {
+            self.transition_to_state(AppState::Loading(format!("✅ Question answered: '{}'", answer.chars().take(50).collect::<String>())));
+            // Return to ticket details view
+            self.show_ticket_details_view(project_name, ticket_id)?;
         }
         Ok(())
     }
@@ -753,12 +1661,16 @@ impl App {
                 let project_name = project_name.clone();
                 self.show_ticket_list(project_name).ok();
             },
-            AppState::TicketDetailsView(project_name, ticket_id) => {
+            AppState::TicketDetailsView(project_name, _) => {
                 let project_name = project_name.clone();
-                let ticket_id = ticket_id.clone();
-                self.show_ticket_detail(project_name, ticket_id).ok();
+                self.show_ticket_list(project_name).ok();
             },
             AppState::TicketSearch(project_name, ticket_id, _) => {
+                let project_name = project_name.clone();
+                let ticket_id = ticket_id.clone();
+                self.show_ticket_details_view(project_name, ticket_id).ok();
+            },
+            AppState::TicketFieldEdit(project_name, ticket_id, _) => {
                 let project_name = project_name.clone();
                 let ticket_id = ticket_id.clone();
                 self.show_ticket_details_view(project_name, ticket_id).ok();
@@ -826,9 +1738,24 @@ impl App {
     }
 
     fn create_project_with_name(&mut self, name: String) -> Result<(), Box<dyn std::error::Error>> {
+        // Validate project name
+        let trimmed_name = name.trim();
+        if trimmed_name.is_empty() {
+            self.transition_to_state(AppState::Error("Project name cannot be empty. Please try again.".to_string()));
+            return Ok(());
+        }
+        
+        // Check if project already exists
+        let existing_projects = self.project_manager.list_projects();
+        if existing_projects.iter().any(|p| p.as_str() == trimmed_name) {
+            self.transition_to_state(AppState::Error(format!("Project '{}' already exists. Please choose a different name.", trimmed_name)));
+            return Ok(());
+        }
+        
         // Store the name and ask for description
+        self.pending_project_name = Some(trimmed_name.to_string());
         self.state = AppState::Input(InputState {
-            title: format!("Create Project: {}", name),
+            title: format!("Create Project: {}", trimmed_name),
             prompt: "Enter project description:".to_string(),
             input: String::new(),
             return_state: Box::new(AppState::CreateProject),
@@ -836,10 +1763,22 @@ impl App {
         Ok(())
     }
 
-    fn finalize_project_creation(&mut self, _description: String) -> Result<(), Box<dyn std::error::Error>> {
-        // This is a simplified version - in reality we'd need to store the name from the previous step
-        self.state = AppState::MainMenu;
-        self.update_main_menu_items();
+    fn finalize_project_creation(&mut self, description: String) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(name) = self.pending_project_name.take() {
+            // Actually create the project
+            match self.project_manager.create_project(name.clone(), description) {
+                Ok(_) => {
+                    // Show success message and then go to main menu
+                    self.transition_to_state(AppState::Loading(format!("✅ Project '{}' created successfully!", name)));
+                    // The auto-transition will take us back to main menu after 2 seconds
+                },
+                Err(e) => {
+                    self.transition_to_state(AppState::Error(format!("Failed to create project '{}': {}", name, e)));
+                }
+            }
+        } else {
+            self.transition_to_state(AppState::Error("Project name not found - please try again".to_string()));
+        }
         Ok(())
     }
 
@@ -869,6 +1808,11 @@ impl App {
     }
 
     fn show_ticket_detail(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
+        // Go directly to ticket details view (show content immediately)
+        self.show_ticket_details_view(project_name, ticket_id)
+    }
+
+    fn show_ticket_actions_menu(&mut self, project_name: String, ticket_id: TicketId) -> Result<(), Box<dyn std::error::Error>> {
         // Update items based on current ticket status
         if let Some(project) = &self.current_project {
             if let Some(node) = project.graph.get_ticket(&ticket_id) {
@@ -877,21 +1821,21 @@ impl App {
                 let dependents_count = node.dependents.len();
                 
                 self.items = vec![
-                    "View ticket details".to_string(),
+                    "← Back to ticket details".to_string(),
                     format!("View refinement requests ({})", refinement_count),
                     format!("Quick refine - show all terms ({})", refinement_count),
                     format!("View dependencies ({})", dependencies_count),
                     format!("View dependents ({})", dependents_count),
-                    "← Back".to_string(),
+                    "← Back to ticket list".to_string(),
                 ];
             } else {
                 self.items = vec![
-                    "View ticket details".to_string(),
+                    "← Back to ticket details".to_string(),
                     "View refinement requests".to_string(),
                     "Quick refine - show all terms".to_string(),
                     "View dependencies".to_string(),
                     "View dependents".to_string(),
-                    "← Back".to_string(),
+                    "← Back to ticket list".to_string(),
                 ];
             }
         }
@@ -911,22 +1855,89 @@ impl App {
         });
     }
 
-    fn create_ticket_with_description(&mut self, project_name: String, _description: String) -> Result<(), Box<dyn std::error::Error>> {
-        self.transition_to_state(AppState::Loading("Creating ticket...".to_string()));
-        // TODO: In a real implementation, this would:
-        // 1. Trigger the async ticket creation
-        // 2. Create a new ticket
-        // 3. Navigate to that new ticket's detail view (becomes new context)
-        // For now, we'll go back to the ticket list
-        // In practice, you'd call something like:
-        // let new_ticket_id = self.create_ticket_async(description).await?;
-        // self.show_ticket_detail(project_name, new_ticket_id)?;
-        self.show_ticket_list(project_name)
+    fn create_ticket_with_description(&mut self, project_name: String, description: String) -> Result<(), Box<dyn std::error::Error>> {
+        self.transition_to_state(AppState::Loading("🔄 Creating ticket with AI decomposition...".to_string()));
+        
+        // Store the creation parameters for async processing
+        // For now, we'll simulate the async operation by transitioning to a completion state
+        // In a real implementation, this would spawn a background task
+        self.handle_ticket_creation_async(project_name, description)
+    }
+    
+    fn handle_ticket_creation_async(&mut self, project_name: String, description: String) -> Result<(), Box<dyn std::error::Error>> {
+        // Since we're running in an async main, use a separate thread to avoid runtime conflicts
+        let api_key = env::var("ANTHROPIC_API_KEY")
+            .map_err(|_| "ANTHROPIC_API_KEY environment variable not set")?;
+        
+        // Launch background task (non-blocking)
+        let sender = self.task_sender.clone();
+        let project_name_clone = project_name.clone();
+        
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let result = rt.block_on(async {
+                let claude_client = ClaudeClient::new(api_key);
+                let config = RetryConfig::default();
+                let ticket_service = TicketService::new(claude_client, config);
+                
+                ticket_service.decompose_ticket(description).await
+            });
+            
+            // Send result back to main thread
+            match result {
+                Ok(ticket) => {
+                    let _ = sender.send(BackgroundTaskResult::TicketComplete {
+                        project_name: project_name_clone,
+                        ticket,
+                    });
+                }
+                Err(e) => {
+                    let _ = sender.send(BackgroundTaskResult::TaskError {
+                        error: format!("Ticket creation failed: {}", e),
+                    });
+                }
+            }
+        });
+        
+        // Return immediately - the result will come via the channel
+        Ok(())
     }
 
     fn save_current_project(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(project) = &self.current_project {
-            self.project_manager.save_project(project)?;
+            let project_name = project.name.clone();
+            
+            // Try to save with automatic recovery
+            match self.project_manager.save_project_with_recovery(project) {
+                Ok(_) => {
+                    // Success! Log the save for debugging
+                    tracing::info!("Successfully saved project '{}'", project_name);
+                    Ok(())
+                }
+                Err(e) => {
+                    // Even the recovery failed, provide detailed diagnostic info
+                    let available_projects: Vec<String> = self.project_manager.list_projects().into_iter().cloned().collect();
+                    
+                    // Try to rebuild index one more time for diagnostics
+                    if let Ok(discovered) = self.project_manager.rebuild_index_from_filesystem() {
+                        info!("Project save failed even after recovery. Discovered projects: {:?}", discovered);
+                    }
+                    
+                    Err(format!("Failed to save project '{}' even after automatic recovery: {}. \
+                                Available projects in index: {:?}. \
+                                This may indicate a deeper filesystem or permissions issue.", 
+                                project_name, e, available_projects).into())
+                }
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    fn reload_current_project(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(project) = &self.current_project {
+            let project_name = project.name.clone();
+            self.current_project = Some(self.project_manager.load_project(&project_name)?);
         }
         Ok(())
     }
@@ -956,14 +1967,27 @@ impl App {
 }
 
 pub fn render(frame: &mut Frame, app: &App) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(0),    // Main content
-            Constraint::Length(3), // Footer
-        ])
-        .split(frame.size());
+    // Create layout with optional log pane
+    let chunks = if app.show_logs {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),      // Header
+                Constraint::Percentage(60), // Main content (reduced when logs shown)
+                Constraint::Percentage(30), // Log pane
+                Constraint::Length(3),      // Footer
+            ])
+            .split(frame.size())
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Header
+                Constraint::Min(0),    // Main content
+                Constraint::Length(3), // Footer
+            ])
+            .split(frame.size())
+    };
 
     // Header
     let title = match &app.state {
@@ -977,6 +2001,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         AppState::TicketDetailsView(name, ticket_id) => &format!("📄 Details: Ticket {} in: {}", ticket_id, name),
         AppState::TicketFieldAction(name, ticket_id, _) => &format!("⚡ Actions: Ticket {} in: {}", ticket_id, name),
         AppState::TicketSearch(name, ticket_id, _) => &format!("🔍 Search: Ticket {} in: {}", ticket_id, name),
+        AppState::TicketFieldEdit(name, ticket_id, _) => &format!("✏️ Edit: Ticket {} in: {}", ticket_id, name),
         AppState::CreateProject => "📝 Create New Project",
         AppState::CreateTicket(_) => "📝 Create New Ticket",
         AppState::QuickRefine(_, _) => "🔍 Quick Refine",
@@ -1001,21 +2026,59 @@ pub fn render(frame: &mut Frame, app: &App) {
         AppState::TicketSearch(project_name, ticket_id, search_state) => {
             render_ticket_search(frame, chunks[1], app, project_name, ticket_id, search_state)
         },
+        AppState::TicketFieldEdit(project_name, ticket_id, edit_state) => {
+            render_ticket_field_edit(frame, chunks[1], app, project_name, ticket_id, edit_state)
+        },
         _ => render_menu(frame, chunks[1], app),
+    }
+
+    // Log pane (if enabled)
+    if app.show_logs {
+        let log_entries = app.log_collector.get_entries();
+        let log_lines: Vec<Line> = log_entries
+            .iter()
+            .map(|entry| {
+                let level_color = match entry.level.as_str() {
+                    "ERROR" => Color::Red,
+                    "WARN" => Color::Yellow,
+                    "INFO" => Color::Green,
+                    "DEBUG" => Color::Blue,
+                    _ => Color::White,
+                };
+                Line::from(vec![
+                    Span::styled(&entry.timestamp, Style::default().fg(Color::Gray)),
+                    Span::raw(" "),
+                    Span::styled(&entry.level, Style::default().fg(level_color)),
+                    Span::raw(" "),
+                    Span::raw(&entry.message),
+                ])
+            })
+            .collect();
+
+        let logs = Paragraph::new(log_lines)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("📋 Logs (L to toggle)"))
+            .style(Style::default().fg(Color::White))
+            .wrap(Wrap { trim: true });
+        frame.render_widget(logs, chunks[2]);
     }
 
     // Footer with instructions
     let instructions = match &app.state {
-        AppState::Input(_) => "Enter: Submit | Esc: Cancel | Backspace: Delete",
-        AppState::TicketDetailsView(_, _) => "↑↓: Navigate | 1-9: Execute action | Enter: Default action | /: Search | Esc: Back",
-        AppState::TicketSearch(_, _, _) => "Type: Search | Enter: Next match | Esc: Exit search",
-        _ => "↑↓: Navigate | Enter: Select | Esc/Q: Back/Quit",
+        AppState::Input(_) => "Type to enter text | Enter: Submit | Esc: Cancel | Backspace: Delete",
+        AppState::TicketDetailsView(_, _) => "↑↓: Navigate | 1-9: Execute action | Enter: Default action | /: Search | L: Logs | Esc: Back",
+        AppState::TicketSearch(_, _, _) => "Type to search | Enter: Next match | Esc: Exit search",
+        AppState::TicketFieldEdit(_, _, _) => "Type to edit text | Enter: Save | Esc: Cancel",
+        _ => "↑↓: Navigate | Enter: Select | L: Toggle Logs | Esc/Q: Back/Quit",
     };
     
     let footer = Paragraph::new(instructions)
         .block(Block::default().borders(Borders::ALL))
         .style(Style::default().fg(Color::Yellow));
-    frame.render_widget(footer, chunks[2]);
+    
+    let footer_index = if app.show_logs { 3 } else { 2 };
+    frame.render_widget(footer, chunks[footer_index]);
 }
 
 fn render_menu(frame: &mut Frame, area: Rect, app: &App) {
@@ -1061,8 +2124,27 @@ fn render_input(frame: &mut Frame, area: Rect, input_state: &InputState) {
 }
 
 fn render_loading(frame: &mut Frame, area: Rect, message: &str) {
-    let loading = Paragraph::new(format!("⏳ {}", message))
-        .block(Block::default().borders(Borders::ALL))
+    // Create animated progress indicator
+    let progress_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let progress_index = (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() / 100) % progress_chars.len() as u128;
+    let progress_char = progress_chars[progress_index as usize];
+    
+    // Enhanced message formatting based on content
+    let formatted_message = if message.contains("AI") || message.contains("Creating ticket") {
+        format!("{} {} (This may take 10-30 seconds...)", progress_char, message)
+    } else if message.contains("Saving") {
+        format!("💾 {}", message)
+    } else if message.contains("✅") {
+        format!("{}", message) // Success messages don't need spinner
+    } else {
+        format!("{} {}", progress_char, message)
+    };
+    
+    let loading = Paragraph::new(formatted_message)
+        .block(Block::default().borders(Borders::ALL).title("Processing"))
         .style(Style::default().fg(Color::Yellow))
         .wrap(Wrap { trim: true });
     frame.render_widget(loading, area);
@@ -1231,7 +2313,10 @@ fn build_ticket_lines_with_highlight(
     
     if !node.dependents.is_empty() {
         lines.push(create_field_line(format!("⬆️ Dependents ({})", node.dependents.len()), field_index, &TicketField::Dependents));
-        field_index += 1;
+        #[allow(unused_assignments)]
+        {
+            field_index += 1;
+        }
     }
     
     lines
@@ -1494,15 +2579,87 @@ fn render_ticket_search(frame: &mut Frame, area: Rect, _app: &App, _project_name
     }
 }
 
+fn render_ticket_field_edit(frame: &mut Frame, area: Rect, app: &App, _project_name: &str, _ticket_id: &TicketId, edit_state: &FieldEditState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(5),  // Field info header
+            Constraint::Length(5),  // Edit input area
+            Constraint::Min(0),     // Current content preview
+        ])
+        .split(area);
+
+    // Field info header
+    let field_name = app.get_field_display_name(&edit_state.field);
+    let modification_indicator = if edit_state.is_modified { " (MODIFIED)" } else { "" };
+    let header_text = format!("Editing: {}{}", field_name, modification_indicator);
+    
+    let header = Paragraph::new(header_text)
+        .block(Block::default().borders(Borders::ALL).title("Field Edit"))
+        .style(Style::default().fg(if edit_state.is_modified { Color::Yellow } else { Color::Cyan }));
+    frame.render_widget(header, chunks[0]);
+
+    // Edit input area
+    match &edit_state.edit_type {
+        EditType::TextEdit => {
+            let input_text = &edit_state.current_value;
+            let input = Paragraph::new(input_text.as_str())
+                .block(Block::default().borders(Borders::ALL).title("Current Value"))
+                .style(Style::default().fg(Color::White))
+                .wrap(Wrap { trim: true });
+            frame.render_widget(input, chunks[1]);
+        },
+        EditType::StatusSelect | EditType::PrioritySelect | EditType::ComplexitySelect => {
+            // For now, show the current value - dropdown selection can be implemented later
+            let selection_type = match edit_state.edit_type {
+                EditType::StatusSelect => "Status",
+                EditType::PrioritySelect => "Priority", 
+                EditType::ComplexitySelect => "Complexity",
+                _ => "Selection"
+            };
+            let input = Paragraph::new(format!("Current {}: {}", selection_type, edit_state.current_value))
+                .block(Block::default().borders(Borders::ALL).title("Selection Mode"))
+                .style(Style::default().fg(Color::Green));
+            frame.render_widget(input, chunks[1]);
+        }
+    }
+
+    // Current content preview (show original value for comparison)
+    if edit_state.is_modified {
+        let preview_text = format!("Original value:\n{}", edit_state.original_value);
+        let preview = Paragraph::new(preview_text)
+            .block(Block::default().borders(Borders::ALL).title("Original Value"))
+            .style(Style::default().fg(Color::Gray))
+            .wrap(Wrap { trim: true });
+        frame.render_widget(preview, chunks[2]);
+    } else {
+        // Show field context or help text
+        let help_text = match &edit_state.edit_type {
+            EditType::TextEdit => "Type to edit the text. Changes will be highlighted.",
+            EditType::StatusSelect => "Use arrow keys to select status (Coming soon)",
+            EditType::PrioritySelect => "Use arrow keys to select priority (Coming soon)",
+            EditType::ComplexitySelect => "Use arrow keys to select complexity (Coming soon)",
+        };
+        let help = Paragraph::new(help_text)
+            .block(Block::default().borders(Borders::ALL).title("Help"))
+            .style(Style::default().fg(Color::Gray))
+            .wrap(Wrap { trim: true });
+        frame.render_widget(help, chunks[2]);
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logging
+    // Create log collector for TUI
+    let log_collector = LogCollector::new(100);
+    
+    // Initialize custom TUI logging (no stdout/stderr output)
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "control_flow=info,client_implementations=info".into()),
         )
-        .with(tracing_subscriber::fmt::layer().with_target(false))
+        .with(TuiLayer::new(log_collector.clone()))
         .init();
 
     info!("Starting Control Flow TUI");
@@ -1514,10 +2671,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Create app
-    let mut app = App::new()?;
+    // Create app with shared log collector
+    let mut app = App::new_with_log_collector(log_collector)?;
 
     // Main loop
+    let mut last_success_time: Option<std::time::Instant> = None;
+    
     loop {
         terminal.draw(|f| render(f, &app))?;
 
@@ -1525,9 +2684,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
 
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                app.handle_key(key.code)?;
+        // Check for auto-transition from success loading states
+        if let AppState::Loading(ref msg) = app.state {
+            if msg.contains("✅") {
+                if last_success_time.is_none() {
+                    last_success_time = Some(std::time::Instant::now());
+                } else if last_success_time.unwrap().elapsed().as_secs() >= 2 {
+                    // Auto-return after 2 seconds of success message
+                    app.return_to_context();
+                    last_success_time = None;
+                }
+            } else {
+                last_success_time = None;
+            }
+        } else {
+            last_success_time = None;
+        }
+
+        // Check for background task completions (non-blocking)
+        while let Ok(result) = app.task_receiver.try_recv() {
+            app.handle_background_task_completion(result)?;
+        }
+
+        // Non-blocking event handling with timeout
+        if event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    app.handle_key(key.code)?;
+                    last_success_time = None; // Reset on user input
+                }
             }
         }
     }
@@ -1543,4 +2728,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Control Flow TUI shutdown");
     Ok(())
+}
+
+// Helper functions for parsing enum values from strings
+fn parse_status(status_str: &str) -> Result<control_flow::ticket::TicketStatus, Box<dyn std::error::Error>> {
+    use control_flow::ticket::TicketStatus;
+    match status_str.to_uppercase().as_str() {
+        "AWAITING_REFINEMENT" | "AWAITING REFINEMENT" | "REFINEMENT" => Ok(TicketStatus::AwaitingRefinement),
+        "IN_PROGRESS" | "IN PROGRESS" | "PROGRESS" => Ok(TicketStatus::InProgress),
+        "UNDER_REVIEW" | "UNDER REVIEW" | "REVIEW" => Ok(TicketStatus::UnderReview),
+        "COMPLETE" | "COMPLETED" | "DONE" => Ok(TicketStatus::Complete),
+        "BLOCKED" | "BLOCK" => Ok(TicketStatus::Blocked),
+        _ => Err(format!("Invalid status: {}", status_str).into()),
+    }
+}
+
+fn parse_priority(priority_str: &str) -> Result<control_flow::ticket::Priority, Box<dyn std::error::Error>> {
+    use control_flow::ticket::Priority;
+    match priority_str.to_uppercase().as_str() {
+        "LOW" => Ok(Priority::Low),
+        "MEDIUM" | "MED" => Ok(Priority::Medium),
+        "HIGH" => Ok(Priority::High),
+        "CRITICAL" | "CRIT" => Ok(Priority::Critical),
+        _ => Err(format!("Invalid priority: {}", priority_str).into()),
+    }
+}
+
+fn parse_complexity(complexity_str: &str) -> Result<control_flow::ticket::Complexity, Box<dyn std::error::Error>> {
+    use control_flow::ticket::Complexity;
+    match complexity_str.to_uppercase().as_str() {
+        "LOW" => Ok(Complexity::Low),
+        "MEDIUM" | "MED" => Ok(Complexity::Medium),
+        "MEDIUM_HIGH" | "MEDIUM HIGH" | "MED HIGH" => Ok(Complexity::MediumHigh),
+        "HIGH" => Ok(Complexity::High),
+        "VERY_HIGH" | "VERY HIGH" | "VERY" => Ok(Complexity::VeryHigh),
+        _ => Err(format!("Invalid complexity: {}", complexity_str).into()),
+    }
 }

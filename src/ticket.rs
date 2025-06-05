@@ -349,6 +349,94 @@ impl ProjectManager {
             workspace_dir,
         })
     }
+
+    /// Scan the workspace directory and rebuild the project index based on actual files
+    pub fn rebuild_index_from_filesystem(&mut self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let mut discovered_projects = Vec::new();
+        let mut new_projects = HashMap::new();
+
+        // Scan workspace directory for .json files
+        if self.workspace_dir.exists() {
+            for entry in fs::read_dir(&self.workspace_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                
+                if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
+                    // Skip the index file itself
+                    if path.file_name().map_or(false, |name| name == "projects.json") {
+                        continue;
+                    }
+
+                    // Try to load and validate the project file
+                    if let Ok(project) = Project::load_from_file(&path) {
+                        let project_name = project.name.clone();
+                        new_projects.insert(project_name.clone(), path);
+                        discovered_projects.push(project_name);
+                    }
+                }
+            }
+        }
+
+        // Update the projects index
+        self.projects = new_projects;
+        self.save_index()?;
+
+        Ok(discovered_projects)
+    }
+
+    /// Attempt to save a project with automatic index recovery on failure
+    pub fn save_project_with_recovery(&mut self, project: &Project) -> Result<(), Box<dyn std::error::Error>> {
+        // First, try the normal save
+        if let Err(_) = self.save_project(project) {
+            // If it fails, rebuild the index and try again
+            let discovered = self.rebuild_index_from_filesystem()?;
+            
+            // Try to find the project by name in discovered projects
+            if discovered.contains(&project.name) {
+                // Try save again after index rebuild
+                self.save_project(project)?;
+            } else {
+                // Project still not found, create a new entry
+                let safe_filename = project.name.replace(' ', "_").replace('/', "_");
+                let project_path = self.workspace_dir.join(format!("{}.json", safe_filename));
+                
+                // Save directly to file and add to index
+                project.save_to_file(&project_path)?;
+                self.projects.insert(project.name.clone(), project_path);
+                self.save_index()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Find project by fuzzy matching name (handles spaces, underscores, case differences)
+    pub fn find_project_by_fuzzy_name(&self, target_name: &str) -> Option<String> {
+        // Normalize the target name
+        let normalized_target = target_name.to_lowercase().replace(' ', "_");
+        
+        // First try exact match
+        if self.projects.contains_key(target_name) {
+            return Some(target_name.to_string());
+        }
+
+        // Try normalized matching
+        for project_name in self.projects.keys() {
+            let normalized_project = project_name.to_lowercase().replace(' ', "_");
+            if normalized_project == normalized_target {
+                return Some(project_name.clone());
+            }
+        }
+
+        // Try partial matching
+        for project_name in self.projects.keys() {
+            let normalized_project = project_name.to_lowercase().replace(' ', "_");
+            if normalized_project.contains(&normalized_target) || normalized_target.contains(&normalized_project) {
+                return Some(project_name.clone());
+            }
+        }
+
+        None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
