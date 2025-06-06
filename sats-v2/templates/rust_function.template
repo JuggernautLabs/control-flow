@@ -1,0 +1,9 @@
+/// {{description}}
+{{#if deprecated}}
+#[deprecated]
+{{/if}}
+pub fn {{function_name}}({{#each parameters}}{{name}}: {{type}}{{#unless @last}}, {{/unless}}{{/each}}) -> {{return_type}} {
+    {{#each body_lines}}
+    {{this}}
+    {{/each}}
+}

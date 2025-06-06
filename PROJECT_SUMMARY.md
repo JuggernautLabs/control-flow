@@ -1,201 +1,498 @@
-# SATS: Semantic Alignment Tracking System
+# Semantic Alignment Tracking System (SATS) v2
+## Implementation Gap Discovery & Work Generation
 
-Complete implementation of the Semantic Alignment Tracking System as specified in CLAUDE.md, with real Claude API integration.
+### Executive Summary
 
-## 🏗️ Project Structure
+SATS v2 transforms from a passive "alignment measurement" system into an active work generation system that:
+1. Discovers implementation gaps through claim analysis
+2. Generates concrete work items to close those gaps
+3. Verifies work actually fulfilled the claims through execution
+
+The key innovation: combining semantic analysis with execution verification to create a complete implementation chain for every claim.
+
+### Core Innovation in v2
+
+Instead of measuring abstract "semantic alignment," SATS v2 tracks the **implementation chain** for each claim:
 
 ```
-control-flow/
-├── CLAUDE.md                    # Technical specification
-├── client-implementations/     # Existing Claude client (reused)
-│   ├── src/claude.rs           # Claude API client implementation
-│   ├── src/client.rs           # Query resolver with retry logic
-│   └── src/error.rs            # Error handling
-├── sats-core/                  # Core SATS library
-│   ├── src/
-│   │   ├── types.rs            # Data structures (Artifact, Claim, etc.)
-│   │   ├── analysis.rs         # Analysis trait interfaces
-│   │   ├── alignment.rs        # Sophisticated alignment scoring
-│   │   ├── storage.rs          # Storage and ingestion abstractions
-│   │   ├── claude_impl.rs      # Claude-powered implementations
-│   │   └── lib.rs              # Public API
-│   └── Cargo.toml
-└── sats-example/               # Example programs
-    ├── src/
-    │   ├── main.rs              # Mock analysis example
-    │   └── bin/
-    │       ├── real_claude_analysis.rs   # Live Claude API analysis
-    │       └── demo_without_api.rs       # Demo without API key
-    ├── README.md               # Mock example documentation
-    ├── README-claude.md        # Real Claude analysis docs
-    └── Cargo.toml
+Claim → Requirements → Implementation → Tests → Execution → Verification
 ```
 
-## 🎯 What Was Implemented
+Each broken link generates actionable work items that can be assigned to humans or AI agents.
 
-### Core Library (`sats-core`)
+### Problem Statement Update
 
-#### 1. **Rich Type System** (`types.rs`)
-- **Artifact**: Represents any analyzable content (code, tests, docs, tickets, commits)
-- **Claim**: Extracted statements with confidence scores and classification
-- **Relationship**: Semantic connections between artifacts
-- **Alignment**: Measures how well evidence supports claims
-- **Gap**: Detected inconsistencies or missing coverage
-- **ProjectHealth**: Overall metrics and analysis results
+v1 tried to measure consistency between artifacts. v2 solves a real problem:
+- **Claims are made** in tickets, commits, and docs
+- **Implementations are missing** or incomplete
+- **Tests don't exist** or don't actually test the claims
+- **No systematic way** to discover and track these gaps
 
-#### 2. **Analysis Interfaces** (`analysis.rs`)
-- **ClaimExtractor**: Extracts narrative statements from artifacts
-- **AlignmentChecker**: Measures evidence-claim alignment
-- **GapAnalyzer**: Detects inconsistencies and gaps
-- **ContextualClaimExtractor**: Enhanced extraction with project context
+SATS v2 provides that systematic discovery and tracking.
 
-#### 3. **Advanced Alignment** (`alignment.rs`)
-- **MultiEvidenceAlignmentChecker**: Sophisticated scoring across multiple sources
-- **AlignmentDimensions**: Semantic, functional, behavioral, structural, temporal
-- **RelationshipEvolutionTracker**: Monitors how relationships change over time
+### Conceptual Model
 
-#### 4. **Storage Abstractions** (`storage.rs`)
-- **SatsStorage**: Core persistence interface with querying
-- **ArtifactIngester**: Processes files, git repos, external sources
-- **CachedStorage**: Performance layer with TTL-based caching
-- **FileTypeDetector**: Auto-categorizes artifacts
+```typescript
+// Core concept: Claims have implementation chains
+interface Claim {
+  id: UUID;
+  statement: string;  // "Password reset works"
+  source: Artifact;   // Where claim was made
+  type: ClaimType;    // functional, performance, security
+  verificationChain: VerificationChain;
+}
 
-#### 5. **Claude Integration** (`claude_impl.rs`)
-- **ClaudeClaimExtractor**: Live claim extraction using Claude API
-- **ClaudeAlignmentChecker**: Alignment analysis with detailed reasoning
-- **Structured prompts** for different artifact types
-- **Error handling** and retry logic
+interface VerificationChain {
+  claim: Claim;
+  requirements: Requirement[];      // What needs to exist
+  implementation: Implementation;   // Does it exist?
+  tests: TestSuite;                // Are there tests?
+  execution: ExecutionResult;      // Do tests pass?
+  semanticVerification: SemanticResult;  // Do tests test the right thing?
+  
+  getStatus(): ChainStatus;
+  getMissingLinks(): WorkItem[];
+}
 
-### Example Programs (`sats-example`)
+enum ChainStatus {
+  NOT_STARTED = "not_started",           // No implementation
+  NEEDS_TESTS = "needs_tests",           // Implementation exists, no tests
+  TESTS_FAILING = "tests_failing",       // Tests exist but fail
+  TESTS_INADEQUATE = "tests_inadequate", // Tests pass but don't verify claim
+  VERIFIED = "verified"                  // Complete chain
+}
 
-#### 1. **Mock Analysis** (`main.rs`)
-- Demonstrates SATS architecture without API calls
-- Analyzes OAuth2 authentication system
-- Shows gap detection and project health metrics
+interface WorkItem {
+  id: UUID;
+  type: WorkItemType;
+  claim: Claim;
+  specification: any;  // Type-specific spec
+  assignee?: string | AIAgent;
+  status: WorkItemStatus;
+}
+```
 
-#### 2. **Real Claude Analysis** (`real_claude_analysis.rs`)
-- **Live Claude API integration** for claim extraction and alignment
-- Analyzes realistic MFA implementation with 5 artifact types
-- Provides detailed analysis with Claude's reasoning
-- Demonstrates ~$3-5 API cost for comprehensive analysis
+### Implementation Chain Verification
 
-#### 3. **Demo Without API** (`demo_without_api.rs`)
-- Shows Claude implementation structure
-- Explains prompt engineering approach
-- No API key required for exploration
+```python
+class VerificationEngine:
+    """Discovers gaps and generates work"""
+    
+    def verify_claim(self, claim: Claim) -> VerificationResult:
+        # 1. Extract what needs to exist
+        requirements = self.extract_requirements(claim)
+        
+        # 2. Check implementation exists
+        impl_check = self.check_implementation(requirements)
+        if not impl_check.exists:
+            return VerificationResult(
+                status=ChainStatus.NOT_STARTED,
+                work_items=[
+                    ImplementationWorkItem(
+                        claim=claim,
+                        requirements=requirements,
+                        specification=self.generate_implementation_spec(claim)
+                    )
+                ]
+            )
+        
+        # 3. Check tests exist
+        test_check = self.check_tests(impl_check.implementation)
+        if not test_check.exists:
+            return VerificationResult(
+                status=ChainStatus.NEEDS_TESTS,
+                work_items=[
+                    TestCreationWorkItem(
+                        claim=claim,
+                        implementation=impl_check.implementation,
+                        specification=self.generate_test_spec(claim)
+                    )
+                ]
+            )
+        
+        # 4. Execute tests
+        execution = self.execute_tests(test_check.tests)
+        if not execution.passed:
+            return VerificationResult(
+                status=ChainStatus.TESTS_FAILING,
+                work_items=[
+                    FixImplementationWorkItem(
+                        claim=claim,
+                        failing_tests=execution.failures,
+                        specification=self.analyze_failures(execution)
+                    )
+                ]
+            )
+        
+        # 5. Verify tests actually test the claim (LLM analysis)
+        semantic_check = self.verify_test_coverage(claim, test_check.tests)
+        if semantic_check.coverage < 0.8:
+            return VerificationResult(
+                status=ChainStatus.TESTS_INADEQUATE,
+                work_items=[
+                    ImproveTestsWorkItem(
+                        claim=claim,
+                        existing_tests=test_check.tests,
+                        gaps=semantic_check.gaps,
+                        specification=self.generate_test_improvements(semantic_check)
+                    )
+                ]
+            )
+        
+        return VerificationResult(
+            status=ChainStatus.VERIFIED,
+            work_items=[],
+            evidence=VerificationEvidence(
+                implementation=impl_check.implementation,
+                tests=test_check.tests,
+                execution=execution,
+                coverage=semantic_check
+            )
+        )
+```
 
-## 🔧 Key Features Implemented
+### Work Item Types
 
-### 1. **Narrative Analysis (Not "Semantics")**
-- Extracts human-readable claims from natural language
-- Understands context and implicit statements
-- Differentiates from code semantics
+```python
+@dataclass
+class ImplementationWorkItem(WorkItem):
+    """Need to write code"""
+    requirements: List[Requirement]
+    specification: ImplementationSpec
+    
+    def to_prompt(self) -> str:
+        return f"""
+        Implement the following to satisfy claim: {self.claim.statement}
+        
+        Requirements:
+        {format_requirements(self.requirements)}
+        
+        Specification:
+        {self.specification}
+        
+        Generate implementation that fulfills these requirements.
+        """
 
-### 2. **Cross-Artifact Analysis**
-- Finds relationships between requirements, code, tests, docs
-- Measures alignment across artifact types
-- Tracks evolution over time
+@dataclass 
+class TestCreationWorkItem(WorkItem):
+    """Need to write tests"""
+    implementation: Implementation
+    specification: TestSpec
+    
+    def to_prompt(self) -> str:
+        return f"""
+        Create tests for claim: {self.claim.statement}
+        
+        Implementation to test:
+        {self.implementation.code}
+        
+        Test requirements:
+        {self.specification}
+        
+        Generate comprehensive tests that verify the claim.
+        """
 
-### 3. **Confidence-Based Scoring**
-- All analysis includes confidence levels (0.0-1.0)
-- Enables threshold-based filtering
-- Provides uncertainty quantification
+@dataclass
+class FixImplementationWorkItem(WorkItem):
+    """Need to fix broken code"""
+    failing_tests: List[TestFailure]
+    specification: FixSpec
+    
+    def to_prompt(self) -> str:
+        return f"""
+        Fix implementation to satisfy claim: {self.claim.statement}
+        
+        Failing tests:
+        {format_failures(self.failing_tests)}
+        
+        Analysis:
+        {self.specification.root_cause}
+        
+        Fix the implementation so tests pass.
+        """
+```
 
-### 4. **Actionable Insights**
-- Specific gap identification
-- Concrete recommendations
-- Project health metrics
+### Execution Integration
 
-## 🚀 Running the Examples
+The key difference in v2 is **actual execution**:
 
-### Prerequisites
-1. **Rust toolchain** (latest stable)
-2. **Claude API key** (for real analysis only)
+```python
+class ExecutionEngine:
+    """Actually runs code and tests"""
+    
+    def execute_tests(self, tests: TestSuite) -> ExecutionResult:
+        # Set up isolated environment
+        env = self.create_sandbox_environment()
+        
+        # Run tests
+        results = []
+        for test in tests.test_cases:
+            result = env.run_test(test)
+            results.append(result)
+        
+        return ExecutionResult(
+            passed=all(r.passed for r in results),
+            results=results,
+            coverage=self.calculate_coverage(tests, results)
+        )
+    
+    def verify_implementation(self, impl: Implementation, claim: Claim) -> bool:
+        """Run implementation with test cases derived from claim"""
+        test_cases = self.generate_test_cases_from_claim(claim)
+        
+        for test_case in test_cases:
+            result = self.execute_with_inputs(impl, test_case.inputs)
+            if not self.matches_expected(result, test_case.expected):
+                return False
+                
+        return True
+```
 
-### Mock Analysis (No API Key)
+### Semantic Verification
+
+LLMs verify that tests actually test what they claim:
+
+```python
+class SemanticVerifier:
+    """Ensures tests actually verify claims"""
+    
+    def verify_test_coverage(self, claim: Claim, tests: TestSuite) -> SemanticResult:
+        prompt = f"""
+        Claim: {claim.statement}
+        
+        Tests:
+        {format_tests(tests)}
+        
+        Analyze whether these tests actually verify the claim.
+        Consider:
+        1. Do test names match what they actually test?
+        2. Do assertions verify the claimed behavior?
+        3. Are edge cases from the claim covered?
+        4. Are there gaps in test coverage?
+        
+        Return coverage score 0-1 and list any gaps.
+        """
+        
+        analysis = self.llm.analyze(prompt)
+        
+        return SemanticResult(
+            coverage=analysis.coverage_score,
+            gaps=analysis.identified_gaps,
+            suggestions=analysis.improvement_suggestions
+        )
+```
+
+### Workflow Example
+
+```
+1. Developer commits: "Implemented password reset functionality"
+
+2. SATS extracts claim: "Password reset works"
+
+3. Verification chain analysis:
+   ├─ Requirements extracted:
+   │   - Password reset endpoint exists
+   │   - Sends reset email
+   │   - Validates reset token
+   │   - Updates password
+   │
+   ├─ Implementation check: ❌ Missing reset endpoint
+   │   → WorkItem: Implement POST /api/password-reset
+   │
+   ├─ Test check: Blocked by implementation
+   │   → Queued: Create password reset tests
+   │
+   └─ Execution check: Blocked by tests
+       → Queued: Verify tests pass
+
+4. AI agent picks up implementation work item:
+   - Generates password reset endpoint
+   - Submits PR
+
+5. SATS re-evaluates:
+   ├─ Implementation check: ✅ Endpoint exists
+   ├─ Test check: ❌ No tests
+   │   → WorkItem: Create tests for password reset
+   └─ ...continues...
+```
+
+### Integration with Development Flow
+
+#### Git Hooks
 ```bash
-cd sats-example
-cargo run
+# post-commit hook
+claim_analysis=$(sats analyze-commit $COMMIT_SHA)
+
+if [ "$claim_analysis.has_unverified_claims" = true ]; then
+    echo "Commit makes unverified claims:"
+    echo "$claim_analysis.claims"
+    
+    echo "Generating work items..."
+    sats generate-work-items $COMMIT_SHA
+fi
 ```
 
-### Real Claude Analysis
-```bash
-cd sats-example
-cp .env.example .env
-# Edit .env and add your API key
-cargo run --bin real_claude_analysis
+#### CI/CD Pipeline
+```yaml
+verify-claims:
+  stage: verify
+  script:
+    # Check all claims in PR
+    - sats verify-pr-claims
+    
+    # Fail if claims aren't backed by implementation
+    - sats check-implementation-chains --fail-on-incomplete
+    
+    # Generate report
+    - sats generate-verification-report
+    
+  artifacts:
+    reports:
+      - verification-report.html
+      - work-items.json
 ```
 
-### Demo Structure
-```bash
-cd sats-example  
-cargo run --bin demo_without_api
+#### IDE Integration
+```typescript
+// Real-time claim verification
+class ClaimVerificationProvider {
+    async provideCodeActions(document: TextDocument, range: Range) {
+        const claim = this.extractClaimFromComment(document, range);
+        if (!claim) return [];
+        
+        const verification = await sats.verifyClaim(claim);
+        
+        if (verification.status !== 'verified') {
+            return [
+                {
+                    title: `Generate ${verification.missingLink}`,
+                    command: 'sats.generateImplementation',
+                    arguments: [verification.workItem]
+                }
+            ];
+        }
+    }
+}
 ```
 
-## 📊 Sample Results
+### Work Item Management
 
-From the real Claude analysis of an MFA implementation:
+```python
+class WorkItemManager:
+    """Manages the queue of generated work"""
+    
+    def assign_work_item(self, item: WorkItem) -> Assignment:
+        if self.is_suitable_for_ai(item):
+            agent = self.select_ai_agent(item)
+            return Assignment(item, agent)
+        else:
+            developer = self.find_available_developer(item.required_skills)
+            return Assignment(item, developer)
+    
+    def is_suitable_for_ai(self, item: WorkItem) -> bool:
+        # Implementation tasks with clear specs
+        if isinstance(item, ImplementationWorkItem):
+            return item.specification.complexity < 0.7
+            
+        # Test creation is often good for AI
+        if isinstance(item, TestCreationWorkItem):
+            return True
+            
+        # Simple fixes
+        if isinstance(item, FixImplementationWorkItem):
+            return len(item.failing_tests) < 3
+            
+        return False
+```
+
+### Metrics and Reporting
+
+```python
+@dataclass
+class ProjectVerificationStatus:
+    total_claims: int
+    verified_claims: int
+    claims_needing_implementation: int
+    claims_needing_tests: int
+    claims_with_failing_tests: int
+    claims_with_inadequate_tests: int
+    
+    open_work_items: List[WorkItem]
+    completed_work_items: List[WorkItem]
+    
+    verification_velocity: float  # Claims verified per day
+    implementation_velocity: float  # Work items completed per day
+    
+    def get_completion_estimate(self) -> timedelta:
+        """Estimate when all claims will be verified"""
+        incomplete = self.total_claims - self.verified_claims
+        return timedelta(days=incomplete / self.verification_velocity)
+```
+
+### Example Report
 
 ```
-🎯 PROJECT HEALTH SUMMARY:
-   Total Claims Extracted: 47
-   Total Alignments Checked: 188
-   Average Alignment Score: 0.73
-   Strong Alignments (≥0.7): 89 (47.3%)
-   Moderate Alignments (0.4-0.7): 64 (34.0%)
-   Weak Alignments (<0.4): 35 (18.6%)
+SATS Verification Report
+Generated: 2024-03-15
 
-🏆 STRONGEST ALIGNMENTS:
-   1. Score: 0.94 - "TOTP codes have 30-second windows" ↔ src/auth/mfa.rs
-   2. Score: 0.93 - "System implements rate limiting" ↔ tests/auth/test_mfa.rs
-   3. Score: 0.91 - "MFA secrets must be encrypted at rest" ↔ src/auth/mfa.rs
+Project: authentication-service
+Repository: github.com/acme/auth
 
-⚠️ POTENTIAL GAPS:
-   1. [Requirement] "SMS service fallback capabilities" (best alignment: 0.12)
-   2. [Requirement] "Hardware security key support" (best alignment: 0.15)
-   3. [Security] "Admin override capabilities for MFA" (best alignment: 0.18)
+Claim Verification Summary:
+├─ Total claims tracked: 47
+├─ Fully verified: 31 (66%)
+├─ Needs implementation: 8 (17%)
+├─ Needs tests: 5 (11%)
+├─ Tests failing: 2 (4%)
+└─ Tests inadequate: 1 (2%)
+
+Work Queue:
+├─ Open items: 16
+├─ Assigned to AI: 12
+├─ Assigned to humans: 4
+└─ Completion ETA: 3.5 days
+
+Recent Progress:
+- ✅ "OAuth2 login works" - Full chain verified
+- ✅ "Rate limiting prevents abuse" - Tests added and passing
+- 🚧 "Password reset emails sent" - Implementation in progress
+- ❌ "Session timeout after 30 min" - Needs implementation
+
+Critical Paths:
+1. Security claims: 3 unverified
+   └─ "Password complexity enforced" - No implementation
+   
+2. Performance claims: 2 unverified
+   └─ "Handles 1000 concurrent users" - No load tests
 ```
 
-## 🎯 Achievements
+### Key Advantages of v2
 
-### ✅ **Specification Compliance**
-- Implements all core components from CLAUDE.md technical spec
-- Provides the exact analysis capabilities described
-- Maintains extensible, trait-based architecture
+1. **Actionable outputs**: Every gap becomes a concrete work item
+2. **Execution-based verification**: Not just text analysis
+3. **Progressive completion**: Watch claims move through the chain
+4. **AI-friendly tasks**: Work items can be handled by agents
+5. **Real confidence**: Based on execution, not text similarity
 
-### ✅ **Real-World Applicability**
-- Works with actual codebases and documentation
-- Provides actionable insights for development teams
-- Scales to realistic project sizes
+### Implementation Phases
 
-### ✅ **AI-Powered Analysis**
-- Leverages Claude's natural language understanding
-- Goes beyond keyword matching to semantic relationships
-- Provides human-readable explanations for decisions
+#### Phase 1: Core Engine
+- Claim extraction from commits/tickets
+- Basic implementation detection
+- Test detection and execution
+- Work item generation
 
-### ✅ **Production-Ready Foundation**
-- Comprehensive error handling and logging
-- Configurable confidence thresholds
-- Caching and performance optimizations
-- Extensible storage backends
+#### Phase 2: AI Integration  
+- AI agents for implementation tasks
+- AI agents for test generation
+- Automated work assignment
 
-## 🔮 Future Enhancements
+#### Phase 3: Advanced Verification
+- Performance claim verification
+- Security claim verification
+- Multi-repository claims
+- Distributed system claims
 
-The current implementation provides a solid foundation for:
+### Conclusion
 
-1. **Integration with CI/CD pipelines**
-2. **IDE plugins** for real-time analysis
-3. **Web dashboards** for project health monitoring
-4. **Custom domain-specific** claim extraction strategies
-5. **Integration with external tools** (JIRA, GitHub, Slack)
-
-## 💡 Impact
-
-SATS addresses a critical gap in software development tooling by:
-
-- **Maintaining semantic consistency** across the development lifecycle
-- **Detecting drift** between requirements, implementation, and tests
-- **Providing concrete insights** rather than abstract metrics
-- **Leveraging AI** to understand human-written specifications and documentation
-
-This implementation demonstrates how LLMs can augment traditional static analysis to provide deeper, more meaningful insights about software project health and consistency.
+SATS v2 solves a real problem: tracking whether claims about software are actually true, and generating the work needed to make them true. By combining semantic analysis with execution verification, it provides a complete system for managing the implementation lifecycle of every claim made about a codebase.
