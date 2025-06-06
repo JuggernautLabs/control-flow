@@ -144,16 +144,112 @@ impl Graph {
 struct GraphState {
     graph: Graph,
     save_path: PathBuf,
+    projects_path: PathBuf,
 }
 
 impl GraphState {
     fn new(save_path: PathBuf) -> Self {
         let graph = Graph::load_from_file(&save_path);
-        Self { graph, save_path }
+        let projects_path = PathBuf::from("projects");
+        
+        // Create projects directory if it doesn't exist
+        if let Err(e) = fs::create_dir_all(&projects_path) {
+            warn!("Failed to create projects directory: {}", e);
+        }
+        
+        Self { graph, save_path, projects_path }
     }
     
     fn save(&self) -> Result<(), String> {
         self.graph.save_to_file(&self.save_path)
+    }
+    
+    fn save_project(&self, project_data: &ProjectData) -> Result<(), String> {
+        let project_file = self.projects_path.join(format!("{}.json", 
+            project_data.name.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_")));
+        
+        match serde_json::to_string_pretty(project_data) {
+            Ok(content) => {
+                match fs::write(&project_file, content) {
+                    Ok(()) => {
+                        info!("Saved project '{}' to file: {:?}", project_data.name, project_file);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!("Failed to write project file: {}", e);
+                        Err(format!("Failed to write project file: {}", e))
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to serialize project: {}", e);
+                Err(format!("Failed to serialize project: {}", e))
+            }
+        }
+    }
+    
+    fn load_project(&self, project_name: &str) -> Result<ProjectData, String> {
+        let project_file = self.projects_path.join(format!("{}.json", 
+            project_name.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_")));
+        
+        match fs::read_to_string(&project_file) {
+            Ok(content) => {
+                match serde_json::from_str::<ProjectData>(&content) {
+                    Ok(project) => {
+                        info!("Loaded project '{}' from file: {:?}", project_name, project_file);
+                        Ok(project)
+                    }
+                    Err(e) => {
+                        error!("Failed to parse project file: {}", e);
+                        Err(format!("Failed to parse project file: {}", e))
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to read project file: {}", e);
+                Err(format!("Project '{}' not found", project_name))
+            }
+        }
+    }
+    
+    fn list_projects(&self) -> Result<Vec<String>, String> {
+        match fs::read_dir(&self.projects_path) {
+            Ok(entries) => {
+                let mut projects = Vec::new();
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        if let Some(filename) = entry.file_name().to_str() {
+                            if filename.ends_with(".json") {
+                                let project_name = filename.trim_end_matches(".json").to_string();
+                                projects.push(project_name);
+                            }
+                        }
+                    }
+                }
+                projects.sort();
+                Ok(projects)
+            }
+            Err(e) => {
+                warn!("Failed to read projects directory: {}", e);
+                Ok(Vec::new())
+            }
+        }
+    }
+    
+    fn delete_project(&self, project_name: &str) -> Result<(), String> {
+        let project_file = self.projects_path.join(format!("{}.json", 
+            project_name.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_")));
+        
+        match fs::remove_file(&project_file) {
+            Ok(()) => {
+                info!("Deleted project '{}': {:?}", project_name, project_file);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to delete project file: {}", e);
+                Err(format!("Failed to delete project: {}", e))
+            }
+        }
     }
 }
 
@@ -184,6 +280,23 @@ struct ApiResponse<T> {
     success: bool,
     data: Option<T>,
     error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectData {
+    pub name: String,
+    pub nodes: HashMap<String, Node>,
+    pub edges: HashMap<String, Edge>,
+    pub config: Option<HashMap<String, serde_json::Value>>,
+    pub timestamp: String,
+}
+
+#[derive(Deserialize)]
+struct SaveProjectRequest {
+    name: String,
+    nodes: HashMap<String, Node>,
+    edges: HashMap<String, Edge>,
+    config: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl<T> ApiResponse<T> {
@@ -317,6 +430,82 @@ async fn clear_graph(State(graph_state): State<SharedGraphState>) -> Json<ApiRes
     Json(ApiResponse::success("Graph cleared".to_string()))
 }
 
+async fn save_project(
+    State(graph_state): State<SharedGraphState>,
+    Json(req): Json<SaveProjectRequest>,
+) -> Json<ApiResponse<String>> {
+    let project_data = ProjectData {
+        name: req.name.clone(),
+        nodes: req.nodes,
+        edges: req.edges,
+        config: req.config,
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string(),
+    };
+    
+    let state = graph_state.read().unwrap();
+    match state.save_project(&project_data) {
+        Ok(()) => {
+            info!("Project '{}' saved successfully", project_data.name);
+            Json(ApiResponse::success(format!("Project '{}' saved successfully", project_data.name)))
+        }
+        Err(e) => {
+            warn!("Failed to save project '{}': {}", project_data.name, e);
+            Json(ApiResponse::error(e))
+        }
+    }
+}
+
+async fn load_project(
+    State(graph_state): State<SharedGraphState>,
+    Path(project_name): Path<String>,
+) -> Json<ApiResponse<ProjectData>> {
+    let state = graph_state.read().unwrap();
+    match state.load_project(&project_name) {
+        Ok(project) => {
+            info!("Project '{}' loaded successfully", project_name);
+            Json(ApiResponse::success(project))
+        }
+        Err(e) => {
+            warn!("Failed to load project '{}': {}", project_name, e);
+            Json(ApiResponse::error(e))
+        }
+    }
+}
+
+async fn list_projects(State(graph_state): State<SharedGraphState>) -> Json<ApiResponse<Vec<String>>> {
+    let state = graph_state.read().unwrap();
+    match state.list_projects() {
+        Ok(projects) => {
+            Json(ApiResponse::success(projects))
+        }
+        Err(e) => {
+            warn!("Failed to list projects: {}", e);
+            Json(ApiResponse::error(e))
+        }
+    }
+}
+
+async fn delete_project(
+    State(graph_state): State<SharedGraphState>,
+    Path(project_name): Path<String>,
+) -> Json<ApiResponse<String>> {
+    let mut state = graph_state.write().unwrap();
+    match state.delete_project(&project_name) {
+        Ok(()) => {
+            info!("Project '{}' deleted successfully", project_name);
+            Json(ApiResponse::success(format!("Project '{}' deleted successfully", project_name)))
+        }
+        Err(e) => {
+            warn!("Failed to delete project '{}': {}", project_name, e);
+            Json(ApiResponse::error(e))
+        }
+    }
+}
+
 async fn serve_ui() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
 }
@@ -341,6 +530,10 @@ async fn main() {
         .route("/api/nodes/:id", delete(remove_node))
         .route("/api/edges/:id", delete(remove_edge))
         .route("/api/clear", post(clear_graph))
+        .route("/api/projects", get(list_projects))
+        .route("/api/projects", post(save_project))
+        .route("/api/projects/:name", get(load_project))
+        .route("/api/projects/:name", delete(delete_project))
         .layer(CorsLayer::permissive())
         .with_state(graph_state);
 
