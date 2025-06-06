@@ -535,7 +535,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // Apply limit (reduced for demonstration)
-    const MAX_ALIGNMENTS: usize = 3;
+    const MAX_ALIGNMENTS: usize = 50;
     let total_possible = alignment_pairs.len();
     let alignments_to_check = alignment_pairs.len().min(MAX_ALIGNMENTS);
     alignment_pairs.truncate(alignments_to_check);

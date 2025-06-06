@@ -1,1284 +1,1397 @@
 {
   "nodes": {
-    "2482e41c-7948-40ba-a3d5-49821190fb28": {
-      "id": "2482e41c-7948-40ba-a3d5-49821190fb28",
-      "label": "MFA Requirement",
+    "6b07a5b7-6083-40ea-a268-0adc5f87633a": {
+      "id": "6b07a5b7-6083-40ea-a268-0adc5f87633a",
+      "label": "Claim: Generates and securely stores backup recovery code",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 24.0,
+      "metadata": {
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "claim_type": "Security",
+        "confidence": "0.900",
+        "statement": "Generates and securely stores backup recovery codes",
+        "source_excerpt": "pub fn generate_backup_codes(&self, user_id: &str) -> Result<Vec<String>, MfaError>",
+        "source_type": "Code",
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "type": "claim"
+      }
     },
-    "5264a12a-5a37-4af7-90b0-77d2bb7cf570": {
-      "id": "5264a12a-5a37-4af7-90b0-77d2bb7cf570",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "3c39ac07-acfe-4902-992d-ff3474f33ff6": {
-      "id": "3c39ac07-acfe-4902-992d-ff3474f33ff6",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "70607a91-7b8c-4a1b-9ee0-fabfbec028ad": {
-      "id": "70607a91-7b8c-4a1b-9ee0-fabfbec028ad",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "c8e265d3-c9e6-468d-8464-ae07a2612cfb": {
-      "id": "c8e265d3-c9e6-468d-8464-ae07a2612cfb",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "5d9d4bfd-484a-409c-b217-86046bca4413": {
-      "id": "5d9d4bfd-484a-409c-b217-86046bca4413",
-      "label": "MFA Requirement",
+    "8ecde0e9-b580-460a-9c5c-87a9054322a9": {
+      "id": "8ecde0e9-b580-460a-9c5c-87a9054322a9",
+      "label": "Claim: Rate limiting allows max 5 MFA verification attemp",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 25.0,
+      "metadata": {
+        "source_excerpt": "Rate limiting: max 5 attempts per 5 minutes",
+        "confidence": "1.000",
+        "claim_type": "Security",
+        "source_type": "Ticket",
+        "statement": "Rate limiting allows max 5 MFA verification attempts per 5 minutes",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "type": "claim",
+        "source_artifact": "GitHub:1247"
+      }
     },
-    "5e805f6a-5714-4d32-87f5-6c311bb92e75": {
-      "id": "5e805f6a-5714-4d32-87f5-6c311bb92e75",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
+    "123b688d-2d43-434b-ae75-5afc1b36e295": {
+      "id": "123b688d-2d43-434b-ae75-5afc1b36e295",
+      "label": "Claim: Users can enable and disable multi-factor authenti",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "claim_type": "Functional",
+        "source_type": "Ticket",
+        "type": "claim",
+        "confidence": "1.000",
+        "source_excerpt": "Users can enable/disable MFA in their account settings",
+        "source_artifact": "GitHub:1247",
+        "statement": "Users can enable and disable multi-factor authentication in their account settings",
+        "extracted_at": "2025-06-05 23:20:43 UTC"
+      }
     },
-    "61a0abd4-255f-42ba-8209-1397463f44de": {
-      "id": "61a0abd4-255f-42ba-8209-1397463f44de",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
+    "35a84e8b-5bfd-409b-baf4-7153797d8d49": {
+      "id": "35a84e8b-5bfd-409b-baf4-7153797d8d49",
+      "label": "Claim: Manages multi-factor authentication (MFA) for user",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "statement": "Manages multi-factor authentication (MFA) for user verification",
+        "source_excerpt": "pub struct MfaManager",
+        "source_type": "Code",
+        "confidence": "1.000",
+        "type": "claim",
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "claim_type": "Functional"
+      }
     },
-    "a07dc622-a968-4ba7-a9ba-6da1892ef704": {
-      "id": "a07dc622-a968-4ba7-a9ba-6da1892ef704",
-      "label": "MFA Requirement",
+    "3d42be21-5bb8-47a8-aded-37844eab8e39": {
+      "id": "3d42be21-5bb8-47a8-aded-37844eab8e39",
+      "label": "Claim: All MFA events must be logged for auditing",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 25.0,
+      "metadata": {
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "claim_type": "Security",
+        "source_type": "Ticket",
+        "statement": "All MFA events must be logged for auditing",
+        "confidence": "1.000",
+        "source_excerpt": "Audit logging for all MFA events",
+        "source_artifact": "GitHub:1247",
+        "type": "claim"
+      }
     },
-    "85f48868-9074-4bfd-b01c-04b1c9f5fe40": {
-      "id": "85f48868-9074-4bfd-b01c-04b1c9f5fe40",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "dec3ce08-2bfb-4b00-a997-8487f5446b16": {
-      "id": "dec3ce08-2bfb-4b00-a997-8487f5446b16",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "37d81f17-34f8-4287-963d-77fe1f9f500c": {
-      "id": "37d81f17-34f8-4287-963d-77fe1f9f500c",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "06992468-9a54-44c1-8f2a-734275eba605": {
-      "id": "06992468-9a54-44c1-8f2a-734275eba605",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "7dfd8bb8-3f5e-4e3b-9b6a-32536ef47eea": {
-      "id": "7dfd8bb8-3f5e-4e3b-9b6a-32536ef47eea",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "c3b1f8bd-5aa1-42cc-a69f-e67c9d74f664": {
-      "id": "c3b1f8bd-5aa1-42cc-a69f-e67c9d74f664",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "d5b1973d-69f3-4338-8af6-8239501ce824": {
-      "id": "d5b1973d-69f3-4338-8af6-8239501ce824",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "1552eb2a-18a2-4ad9-b41b-cce4d564f7f5": {
-      "id": "1552eb2a-18a2-4ad9-b41b-cce4d564f7f5",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "442c3275-26e5-4a82-a0f2-168a59bbd161": {
-      "id": "442c3275-26e5-4a82-a0f2-168a59bbd161",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "257aad34-d724-41d6-b610-87849587c6c2": {
-      "id": "257aad34-d724-41d6-b610-87849587c6c2",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "9cc7e6d6-7865-4221-a74e-b5b24defd3d6": {
-      "id": "9cc7e6d6-7865-4221-a74e-b5b24defd3d6",
-      "label": "MFA Requirement",
+    "021a7bef-3ee4-4682-b467-473daf86f4d4": {
+      "id": "021a7bef-3ee4-4682-b467-473daf86f4d4",
+      "label": "Claim: Uses encryption for protecting sensitive authentic",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 24.0,
+      "metadata": {
+        "statement": "Uses encryption for protecting sensitive authentication secrets",
+        "source_type": "Code",
+        "source_excerpt": "let encrypted_secret = self.encrypt_secret(&secret)?",
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "type": "claim",
+        "confidence": "0.900",
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "claim_type": "Security"
+      }
     },
-    "dc915694-cb84-478d-a40b-ac0ae2db9e38": {
-      "id": "dc915694-cb84-478d-a40b-ac0ae2db9e38",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
+    "7977ec29-e716-4fd5-8aa6-ea9269e38c11": {
+      "id": "7977ec29-e716-4fd5-8aa6-ea9269e38c11",
+      "label": "Claim: Users receive 10 single-use backup codes",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "type": "claim",
+        "source_artifact": "GitHub:1247",
+        "claim_type": "Functional",
+        "confidence": "1.000",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "source_excerpt": "Backup codes: 10 single-use codes per user",
+        "statement": "Users receive 10 single-use backup codes",
+        "source_type": "Ticket"
+      }
     },
-    "9e9105f6-efe6-4048-8f43-873d16c66344": {
-      "id": "9e9105f6-efe6-4048-8f43-873d16c66344",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
+    "50105e81-58af-4dc6-9745-690b52845272": {
+      "id": "50105e81-58af-4dc6-9745-690b52845272",
+      "label": "Claim: Verifies TOTP codes with a 30-second time window t",
+      "color": "#48dbfb",
+      "size": 25.0,
+      "metadata": {
+        "confidence": "1.000",
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "source_type": "Code",
+        "source_excerpt": "let time_steps = current_time.as_secs() / 30; for step in [time_steps.wrapping_sub(1), time_steps, time_steps + 1]",
+        "statement": "Verifies TOTP codes with a 30-second time window tolerance",
+        "type": "claim",
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "claim_type": "Behavior"
+      }
     },
-    "da1fe973-232f-44f3-8b30-969418e3ef10": {
-      "id": "da1fe973-232f-44f3-8b30-969418e3ef10",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "49e96714-54a3-41cb-82c6-294a8b92aaac": {
-      "id": "49e96714-54a3-41cb-82c6-294a8b92aaac",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "462651be-3106-4aa3-9599-c76cf2573cdc": {
-      "id": "462651be-3106-4aa3-9599-c76cf2573cdc",
-      "label": "MFA Requirement",
+    "093e8bfa-14cd-425d-8900-b4e2cf310907": {
+      "id": "093e8bfa-14cd-425d-8900-b4e2cf310907",
+      "label": "Claim: SMS verification codes expire after 5 minutes",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 25.0,
+      "metadata": {
+        "type": "claim",
+        "source_artifact": "GitHub:1247",
+        "source_type": "Ticket",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "confidence": "1.000",
+        "statement": "SMS verification codes expire after 5 minutes",
+        "claim_type": "Security",
+        "source_excerpt": "SMS codes expire after 5 minutes"
+      }
     },
-    "3551d9e9-25b3-4b48-8bef-24951ab43ff2": {
-      "id": "3551d9e9-25b3-4b48-8bef-24951ab43ff2",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
+    "aac3eb43-bb84-4700-8fa2-9a055686b524": {
+      "id": "aac3eb43-bb84-4700-8fa2-9a055686b524",
+      "label": "Claim: Generates Time-based One-Time Password (TOTP) secr",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "statement": "Generates Time-based One-Time Password (TOTP) secrets for users",
+        "confidence": "1.000",
+        "claim_type": "Functional",
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "type": "claim",
+        "source_type": "Code",
+        "source_excerpt": "pub fn generate_totp_secret(&self, user_id: &str) -> Result<String, MfaError>"
+      }
     },
-    "476b6c28-f4f0-4aec-a786-1ee9e5cd6290": {
-      "id": "476b6c28-f4f0-4aec-a786-1ee9e5cd6290",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "d223402a-6552-4b0a-af07-fb1bede06c2b": {
-      "id": "d223402a-6552-4b0a-af07-fb1bede06c2b",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "d86553c9-cf4e-4c8f-9e9f-1299865b4d29": {
-      "id": "d86553c9-cf4e-4c8f-9e9f-1299865b4d29",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "483e9b63-083e-4937-9d38-fb7985302658": {
-      "id": "483e9b63-083e-4937-9d38-fb7985302658",
-      "label": "MFA Requirement",
+    "38191eb5-4c09-4a86-8189-5ff8671c0201": {
+      "id": "38191eb5-4c09-4a86-8189-5ff8671c0201",
+      "label": "Claim: Implements rate limiting for MFA verification atte",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 24.0,
+      "metadata": {
+        "claim_type": "Security",
+        "type": "claim",
+        "source_type": "Code",
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "statement": "Implements rate limiting for MFA verification attempts",
+        "confidence": "0.900",
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "source_excerpt": "if !self.rate_limiter.allow_request(user_id) { return Err(MfaError::RateLimitExceeded); }"
+      }
     },
-    "8d8e8b12-54cb-47a5-82bc-18a90d16def4": {
-      "id": "8d8e8b12-54cb-47a5-82bc-18a90d16def4",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
+    "27056903-f9f1-4b97-a070-0cdc4bbdeae2": {
+      "id": "27056903-f9f1-4b97-a070-0cdc4bbdeae2",
+      "label": "Claim: System must support SMS-based verification codes f",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "confidence": "1.000",
+        "statement": "System must support SMS-based verification codes for multi-factor authentication",
+        "source_artifact": "GitHub:1247",
+        "source_excerpt": "Support SMS-based verification codes",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "source_type": "Ticket",
+        "type": "claim",
+        "claim_type": "Functional"
+      }
     },
-    "fbfcc7e4-6165-4f08-bfca-d8c7f03b42d2": {
-      "id": "fbfcc7e4-6165-4f08-bfca-d8c7f03b42d2",
-      "label": "TOTP Implementation",
+    "43be1eee-f233-469a-aa59-77966c8292ee": {
+      "id": "43be1eee-f233-469a-aa59-77966c8292ee",
+      "label": "Claim: TOTP codes have a 30-second validation window",
+      "color": "#ff6b6b",
+      "size": 25.0,
+      "metadata": {
+        "type": "claim",
+        "source_type": "Ticket",
+        "source_artifact": "GitHub:1247",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "confidence": "1.000",
+        "claim_type": "Security",
+        "statement": "TOTP codes have a 30-second validation window",
+        "source_excerpt": "TOTP codes have 30-second windows"
+      }
+    },
+    "f297c6f4-be2d-4e9b-b88b-965ee7d84b83": {
+      "id": "f297c6f4-be2d-4e9b-b88b-965ee7d84b83",
+      "label": "Claim: Logs MFA-related events for auditing and monitorin",
+      "color": "#48dbfb",
+      "size": 23.0,
+      "metadata": {
+        "statement": "Logs MFA-related events for auditing and monitoring",
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "confidence": "0.800",
+        "source_type": "Code",
+        "claim_type": "Behavior",
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "type": "claim",
+        "source_excerpt": "self.log_mfa_event(user_id, \"totp_success\")"
+      }
+    },
+    "fcdd409d-e6d9-4e59-a999-17fbe061c797": {
+      "id": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "Code: src/auth/mfa.rs:1-85",
       "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
+      "size": 25.0,
+      "metadata": {
+        "location": "src/auth/mfa.rs:1-85",
+        "author": "alice@company.com",
+        "created_at": "2025-05-29 23:20:29 UTC",
+        "content_preview": "\nuse crypto::{AES256, HMAC_SHA256};\nuse std::time::{SystemTime, UNIX_EPOCH};\n\n/// Multi-Factor Authentication manager\npub struct MfaManager {\n    secret_key: Vec<u8>,\n    sms_client: SmsClient,\n    ra...",
+        "type": "Code"
+      }
     },
-    "8571503e-ab4e-4bb3-8830-78ad93a08d81": {
-      "id": "8571503e-ab4e-4bb3-8830-78ad93a08d81",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
+    "a0fe8f60-8873-4d18-a36a-3eb5ccded3cf": {
+      "id": "a0fe8f60-8873-4d18-a36a-3eb5ccded3cf",
+      "label": "Claim: Users must be able to generate backup codes for ac",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "type": "claim",
+        "claim_type": "Functional",
+        "confidence": "1.000",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "source_excerpt": "Backup codes generation for account recovery",
+        "statement": "Users must be able to generate backup codes for account recovery",
+        "source_artifact": "GitHub:1247",
+        "source_type": "Ticket"
+      }
     },
-    "80aed662-3986-4956-9a29-14eb921378d3": {
-      "id": "80aed662-3986-4956-9a29-14eb921378d3",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
+    "9243747c-711b-4481-977d-2347db72edc4": {
+      "id": "9243747c-711b-4481-977d-2347db72edc4",
+      "label": "Claim: MFA must integrate with existing JWT authenticatio",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "source_type": "Ticket",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "source_artifact": "GitHub:1247",
+        "source_excerpt": "Must integrate with existing JWT authentication",
+        "statement": "MFA must integrate with existing JWT authentication system",
+        "claim_type": "Structure",
+        "type": "claim",
+        "confidence": "1.000"
+      }
     },
-    "6a26cf07-5b4c-49d4-85a4-df9f480c4b1f": {
-      "id": "6a26cf07-5b4c-49d4-85a4-df9f480c4b1f",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
+    "035d26f9-4fd8-4324-9da9-356aebf80fbe": {
+      "id": "035d26f9-4fd8-4324-9da9-356aebf80fbe",
+      "label": "Claim: Backup codes are 8 characters long",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "confidence": "1.000",
+        "statement": "Backup codes are 8 characters long",
+        "source_artifact": "tests/auth/test_mfa.rs:1-95",
+        "source_type": "Test",
+        "source_excerpt": "for code in &codes { assert_eq!(code.len(), 8); }",
+        "claim_type": "Functional",
+        "extracted_at": "2025-06-05 23:20:40 UTC",
+        "type": "claim"
+      }
     },
-    "117abb60-b2c1-4426-a84e-685105e5addd": {
-      "id": "117abb60-b2c1-4426-a84e-685105e5addd",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "283cc533-14f8-4a7b-8192-54d3e680cf3c": {
-      "id": "283cc533-14f8-4a7b-8192-54d3e680cf3c",
-      "label": "MFA Requirement",
+    "186a2895-96f9-46dc-b0b5-6c8387eecbd2": {
+      "id": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "Ticket: GitHub:1247",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 25.0,
+      "metadata": {
+        "author": "security-team@company.com",
+        "location": "GitHub:1247",
+        "artifact_labels": "security,authentication",
+        "content_preview": "\n# Feature Request: Multi-Factor Authentication (MFA)\n\n## Description\nWe need to implement multi-factor authentication to enhance security for user accounts. This should support both SMS and authentic...",
+        "type": "Ticket",
+        "artifact_priority": "high",
+        "created_at": "2025-05-22 23:20:29 UTC"
+      }
     },
-    "db87135e-1e8b-4c25-a8c3-4a256208e7fe": {
-      "id": "db87135e-1e8b-4c25-a8c3-4a256208e7fe",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
+    "0caef0f5-7e88-4c55-accb-195dca3657e2": {
+      "id": "0caef0f5-7e88-4c55-accb-195dca3657e2",
+      "label": "Claim: System must gracefully handle MFA service unavaila",
+      "color": "#48dbfb",
+      "size": 24.0,
+      "metadata": {
+        "source_artifact": "GitHub:1247",
+        "claim_type": "Behavior",
+        "type": "claim",
+        "source_excerpt": "Graceful fallback if MFA service is unavailable",
+        "source_type": "Ticket",
+        "confidence": "0.900",
+        "statement": "System must gracefully handle MFA service unavailability",
+        "extracted_at": "2025-06-05 23:20:43 UTC"
+      }
     },
-    "670eda80-344c-41aa-8f2b-1b1e8560c001": {
-      "id": "670eda80-344c-41aa-8f2b-1b1e8560c001",
-      "label": "MFA Requirement",
+    "72cedc73-4642-4b78-8c2a-1d1a8806cb73": {
+      "id": "72cedc73-4642-4b78-8c2a-1d1a8806cb73",
+      "label": "Claim: MFA implements rate limiting after 5 failed attemp",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 24.0,
+      "metadata": {
+        "source_excerpt": "let result = mfa.verify_totp(user_id, \"000000\"); assert!(matches!(result, Err(MfaError::RateLimitExceeded)));",
+        "source_artifact": "tests/auth/test_mfa.rs:1-95",
+        "statement": "MFA implements rate limiting after 5 failed attempts",
+        "type": "claim",
+        "extracted_at": "2025-06-05 23:20:40 UTC",
+        "claim_type": "Security",
+        "source_type": "Test",
+        "confidence": "0.900"
+      }
     },
-    "16856d30-b482-47f5-9f35-2acbc7cf0f9b": {
-      "id": "16856d30-b482-47f5-9f35-2acbc7cf0f9b",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
+    "7fce3b7d-996a-488d-bbed-a11a21d2fcac": {
+      "id": "7fce3b7d-996a-488d-bbed-a11a21d2fcac",
+      "label": "Claim: Supports SMS-based verification code generation an",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "source_type": "Code",
+        "statement": "Supports SMS-based verification code generation and sending",
+        "extracted_at": "2025-06-05 23:20:41 UTC",
+        "source_artifact": "src/auth/mfa.rs:1-85",
+        "type": "claim",
+        "claim_type": "Functional",
+        "source_excerpt": "pub async fn send_sms_code(&self, user_id: &str, phone: &str) -> Result<(), MfaError>",
+        "confidence": "1.000"
+      }
     },
-    "d61c00f4-8a9f-4dff-90f9-f27ec1f534fd": {
-      "id": "d61c00f4-8a9f-4dff-90f9-f27ec1f534fd",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
+    "6c215362-fe37-424c-b9af-fe9a51e9959a": {
+      "id": "6c215362-fe37-424c-b9af-fe9a51e9959a",
+      "label": "Claim: TOTP generation produces a 52-character base32 enc",
+      "color": "#ff9ff3",
+      "size": 24.0,
+      "metadata": {
+        "confidence": "0.900",
+        "source_artifact": "tests/auth/test_mfa.rs:1-95",
+        "statement": "TOTP generation produces a 52-character base32 encoded secret",
+        "type": "claim",
+        "claim_type": "Functional",
+        "source_type": "Test",
+        "source_excerpt": "let secret = mfa.generate_totp_secret(user_id).unwrap(); assert_eq!(secret.len(), 52);",
+        "extracted_at": "2025-06-05 23:20:40 UTC"
+      }
     },
-    "c48a0364-818c-4cc4-b7f5-a264759e17d8": {
-      "id": "c48a0364-818c-4cc4-b7f5-a264759e17d8",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "1c0c9269-3d2d-4019-88ac-6fbd1441f30d": {
-      "id": "1c0c9269-3d2d-4019-88ac-6fbd1441f30d",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "4b6531bb-d94f-4250-a5de-fed93e0a5353": {
-      "id": "4b6531bb-d94f-4250-a5de-fed93e0a5353",
-      "label": "MFA Requirement",
+    "c218ccac-2d00-48c6-8ce0-fd60746c4023": {
+      "id": "c218ccac-2d00-48c6-8ce0-fd60746c4023",
+      "label": "Claim: MFA allows up to 5 consecutive failed verification",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 24.0,
+      "metadata": {
+        "type": "claim",
+        "claim_type": "Security",
+        "extracted_at": "2025-06-05 23:20:40 UTC",
+        "statement": "MFA allows up to 5 consecutive failed verification attempts",
+        "source_excerpt": "for i in 0..5 { let result = mfa.verify_totp(user_id, \"000000\"); assert!(result.is_ok(), \"Attempt {} should be allowed\", i + 1); }",
+        "source_artifact": "tests/auth/test_mfa.rs:1-95",
+        "source_type": "Test",
+        "confidence": "0.900"
+      }
     },
-    "a74c83fd-3a11-4f1e-abfa-b4c8af36fe70": {
-      "id": "a74c83fd-3a11-4f1e-abfa-b4c8af36fe70",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
+    "bf43a49b-027d-457a-b60d-dc199c3a0281": {
+      "id": "bf43a49b-027d-457a-b60d-dc199c3a0281",
+      "label": "Claim: Backup code generation creates exactly 10 unique c",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "source_type": "Test",
+        "extracted_at": "2025-06-05 23:20:40 UTC",
+        "claim_type": "Functional",
+        "statement": "Backup code generation creates exactly 10 unique codes",
+        "source_excerpt": "let codes = mfa.generate_backup_codes(user_id).unwrap(); assert_eq!(codes.len(), 10); let unique_codes: std::collections::HashSet<_> = codes.iter().collect(); assert_eq!(unique_codes.len(), 10);",
+        "type": "claim",
+        "confidence": "1.000",
+        "source_artifact": "tests/auth/test_mfa.rs:1-95"
+      }
     },
-    "66a62bbd-55c3-451a-8f5d-430e38a8951b": {
-      "id": "66a62bbd-55c3-451a-8f5d-430e38a8951b",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
+    "26946bf8-9f1e-40ab-a173-7a3a53e7304a": {
+      "id": "26946bf8-9f1e-40ab-a173-7a3a53e7304a",
+      "label": "Claim: Invalid TOTP codes are rejected",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "statement": "Invalid TOTP codes are rejected",
+        "confidence": "1.000",
+        "claim_type": "Functional",
+        "source_type": "Test",
+        "source_artifact": "tests/auth/test_mfa.rs:1-95",
+        "type": "claim",
+        "source_excerpt": "let invalid_result = mfa.verify_totp(user_id, \"000000\").unwrap(); assert!(!invalid_result, \"Invalid TOTP should fail\");",
+        "extracted_at": "2025-06-05 23:20:40 UTC"
+      }
     },
-    "8c3b1576-2fe9-484e-b936-9ed8337c064d": {
-      "id": "8c3b1576-2fe9-484e-b936-9ed8337c064d",
-      "label": "MFA Requirement",
+    "19495689-49f8-45fd-8c60-b7a2837a89be": {
+      "id": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "Test: tests/auth/test_mfa.rs:1-95",
+      "color": "#45b7d1",
+      "size": 25.0,
+      "metadata": {
+        "created_at": "2025-05-31 23:20:29 UTC",
+        "location": "tests/auth/test_mfa.rs:1-95",
+        "author": "alice@company.com",
+        "type": "Test",
+        "content_preview": "\n#[cfg(test)]\nmod mfa_tests {\n    use super::*;\n    use tokio_test;\n\n    #[tokio::test]\n    async fn test_totp_generation_and_verification() {\n        let mfa = MfaManager::new_for_testing();\n        ..."
+      }
+    },
+    "b8792c18-7e82-43fc-b7ea-5fc4f652476f": {
+      "id": "b8792c18-7e82-43fc-b7ea-5fc4f652476f",
+      "label": "Claim: MFA verification attempts must be rate limited",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 25.0,
+      "metadata": {
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "source_type": "Ticket",
+        "confidence": "1.000",
+        "claim_type": "Security",
+        "source_excerpt": "Rate limiting on MFA verification attempts",
+        "statement": "MFA verification attempts must be rate limited",
+        "type": "claim",
+        "source_artifact": "GitHub:1247"
+      }
     },
-    "099f6c8e-23bc-431a-b30a-2203938625b8": {
-      "id": "099f6c8e-23bc-431a-b30a-2203938625b8",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "74c154fe-b43f-46e1-8541-bc3fd813a16a": {
-      "id": "74c154fe-b43f-46e1-8541-bc3fd813a16a",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "33192268-71aa-4bfb-9fd1-25068c63f334": {
-      "id": "33192268-71aa-4bfb-9fd1-25068c63f334",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "879be918-4cb8-4352-919b-65b63d98f305": {
-      "id": "879be918-4cb8-4352-919b-65b63d98f305",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "febd74c8-b883-412f-a3b8-c98de56d127f": {
-      "id": "febd74c8-b883-412f-a3b8-c98de56d127f",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "9f49c45f-e704-4097-9752-54de1a81cc30": {
-      "id": "9f49c45f-e704-4097-9752-54de1a81cc30",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "fb746992-7e81-4741-aa87-deaca2a3c068": {
-      "id": "fb746992-7e81-4741-aa87-deaca2a3c068",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "e2a66638-f631-4718-a5fc-642a32c1b4df": {
-      "id": "e2a66638-f631-4718-a5fc-642a32c1b4df",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "a1e7f68b-c94c-45d9-825c-c4f5758cf4c2": {
-      "id": "a1e7f68b-c94c-45d9-825c-c4f5758cf4c2",
-      "label": "MFA Requirement",
+    "4ee0e7e8-eef4-43fb-a3f3-132e2b5d9d3f": {
+      "id": "4ee0e7e8-eef4-43fb-a3f3-132e2b5d9d3f",
+      "label": "Claim: MFA secrets must be encrypted when stored",
       "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
+      "size": 25.0,
+      "metadata": {
+        "confidence": "1.000",
+        "source_artifact": "GitHub:1247",
+        "statement": "MFA secrets must be encrypted when stored",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "type": "claim",
+        "source_type": "Ticket",
+        "claim_type": "Security",
+        "source_excerpt": "MFA secrets must be encrypted at rest"
+      }
     },
-    "cc21031b-0fec-4e08-b977-1b4c5e5bb251": {
-      "id": "cc21031b-0fec-4e08-b977-1b4c5e5bb251",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
+    "968a9d63-aa7c-414b-aa17-82fca9bee9ca": {
+      "id": "968a9d63-aa7c-414b-aa17-82fca9bee9ca",
+      "label": "Claim: System must support TOTP authenticator apps for mu",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "source_artifact": "GitHub:1247",
+        "source_type": "Ticket",
+        "source_excerpt": "Support TOTP authenticator apps (Google Authenticator, Authy, etc.)",
+        "extracted_at": "2025-06-05 23:20:43 UTC",
+        "type": "claim",
+        "statement": "System must support TOTP authenticator apps for multi-factor authentication",
+        "claim_type": "Functional",
+        "confidence": "1.000"
+      }
     },
-    "9e52255a-a968-463b-8816-4d1a0348ed99": {
-      "id": "9e52255a-a968-463b-8816-4d1a0348ed99",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "f3fef35c-2848-48dd-a20b-49902b7a09bd": {
-      "id": "f3fef35c-2848-48dd-a20b-49902b7a09bd",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "38de20b0-f303-4aa4-bc6a-3892a15fbfd2": {
-      "id": "38de20b0-f303-4aa4-bc6a-3892a15fbfd2",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "dd32ed1e-b2b5-4d5c-acd4-34123338c592": {
-      "id": "dd32ed1e-b2b5-4d5c-acd4-34123338c592",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "60e9da8a-89ce-462a-8d1e-f44af0d5a6ee": {
-      "id": "60e9da8a-89ce-462a-8d1e-f44af0d5a6ee",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "2df53784-0972-4f51-85b7-4053b690329d": {
-      "id": "2df53784-0972-4f51-85b7-4053b690329d",
-      "label": "MFA Requirement",
-      "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
-    },
-    "1c54b2a9-900d-440c-95cc-bdc8950a0a56": {
-      "id": "1c54b2a9-900d-440c-95cc-bdc8950a0a56",
-      "label": "MFA Requirement",
-      "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
-    },
-    "b7c08b16-3fff-4534-a45d-62e22093de4e": {
-      "id": "b7c08b16-3fff-4534-a45d-62e22093de4e",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "044b8827-04b4-461f-a3a9-51d584ec9e84": {
-      "id": "044b8827-04b4-461f-a3a9-51d584ec9e84",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "42f04939-cffe-4919-ae26-0db27c3d16ce": {
-      "id": "42f04939-cffe-4919-ae26-0db27c3d16ce",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "92d01665-d67c-42d2-935e-54b0ec01d9c9": {
-      "id": "92d01665-d67c-42d2-935e-54b0ec01d9c9",
-      "label": "MFA Requirement",
-      "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
-    },
-    "50238a0a-4299-436a-b360-df5b9d8e253a": {
-      "id": "50238a0a-4299-436a-b360-df5b9d8e253a",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "5715bf9a-fba7-4a36-a811-3fe726ebae74": {
-      "id": "5715bf9a-fba7-4a36-a811-3fe726ebae74",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "901a9744-9723-485b-a82d-cb4e952ce40d": {
-      "id": "901a9744-9723-485b-a82d-cb4e952ce40d",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "4dad6ee3-9b97-4a24-a81e-9dd06390d632": {
-      "id": "4dad6ee3-9b97-4a24-a81e-9dd06390d632",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "6039201a-1faa-45f9-924c-da937ed40a62": {
-      "id": "6039201a-1faa-45f9-924c-da937ed40a62",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "4d081802-aebe-404c-95e3-7230ec873275": {
-      "id": "4d081802-aebe-404c-95e3-7230ec873275",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "187aa458-ef1e-4bd1-a5fa-180f1e36f7e6": {
-      "id": "187aa458-ef1e-4bd1-a5fa-180f1e36f7e6",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "114ab3b7-e42b-4a1b-9177-501453910458": {
-      "id": "114ab3b7-e42b-4a1b-9177-501453910458",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "a183a152-eef4-4c9e-ad8e-b0c591ef4a49": {
-      "id": "a183a152-eef4-4c9e-ad8e-b0c591ef4a49",
-      "label": "MFA Requirement",
-      "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
-    },
-    "840c3ecc-0515-4a8a-a7c1-73067965671f": {
-      "id": "840c3ecc-0515-4a8a-a7c1-73067965671f",
-      "label": "MFA Requirement",
-      "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
-    },
-    "26f33f71-c855-49e9-b4ef-ae9982ce4898": {
-      "id": "26f33f71-c855-49e9-b4ef-ae9982ce4898",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "e471e8b0-532b-4d75-9b98-72c389ac6438": {
-      "id": "e471e8b0-532b-4d75-9b98-72c389ac6438",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "17e8f960-d7b4-4b31-b83b-768f6f83b4cc": {
-      "id": "17e8f960-d7b4-4b31-b83b-768f6f83b4cc",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "ff78d182-580d-4e17-bb54-d7e5c078680f": {
-      "id": "ff78d182-580d-4e17-bb54-d7e5c078680f",
-      "label": "MFA Requirement",
-      "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
-    },
-    "6602a178-49a2-4def-87cd-39e6ab934d08": {
-      "id": "6602a178-49a2-4def-87cd-39e6ab934d08",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "0ffb0e8b-a807-45ab-a5a4-bc4c2398ff23": {
-      "id": "0ffb0e8b-a807-45ab-a5a4-bc4c2398ff23",
-      "label": "Security Claims",
-      "color": "#feca57",
-      "size": null,
-      "metadata": {}
-    },
-    "19059e7f-c73e-409a-9154-f31e36920293": {
-      "id": "19059e7f-c73e-409a-9154-f31e36920293",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "9bf52e6b-6638-4593-9b23-fb7c6ad777ec": {
-      "id": "9bf52e6b-6638-4593-9b23-fb7c6ad777ec",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
-    },
-    "e430b998-7212-4636-8399-b753f7020044": {
-      "id": "e430b998-7212-4636-8399-b753f7020044",
-      "label": "MFA Requirement",
-      "color": "#ff6b6b",
-      "size": null,
-      "metadata": {}
-    },
-    "95373d0b-92a9-47d0-acd3-0e1d529053d2": {
-      "id": "95373d0b-92a9-47d0-acd3-0e1d529053d2",
-      "label": "API Documentation",
-      "color": "#96ceb4",
-      "size": null,
-      "metadata": {}
-    },
-    "2a48756e-d248-433e-98f4-cbddfbb2fdf7": {
-      "id": "2a48756e-d248-433e-98f4-cbddfbb2fdf7",
-      "label": "MFA Tests",
-      "color": "#45b7d1",
-      "size": null,
-      "metadata": {}
-    },
-    "14d80011-f389-470b-b454-3200df9e72cb": {
-      "id": "14d80011-f389-470b-b454-3200df9e72cb",
-      "label": "TOTP Implementation",
-      "color": "#4ecdc4",
-      "size": null,
-      "metadata": {}
+    "35766834-5c72-4beb-a28f-f788847f34ca": {
+      "id": "35766834-5c72-4beb-a28f-f788847f34ca",
+      "label": "Claim: TOTP verification allows valid codes to pass",
+      "color": "#ff9ff3",
+      "size": 25.0,
+      "metadata": {
+        "statement": "TOTP verification allows valid codes to pass",
+        "source_type": "Test",
+        "source_excerpt": "let result = mfa.verify_totp(user_id, &totp_code).unwrap(); assert!(result, \"TOTP verification should succeed\");",
+        "type": "claim",
+        "extracted_at": "2025-06-05 23:20:40 UTC",
+        "claim_type": "Functional",
+        "confidence": "1.000",
+        "source_artifact": "tests/auth/test_mfa.rs:1-95"
+      }
     }
   },
   "edges": {
-    "d998ec8d-9afe-4a2c-ba2e-9647d0ead224": {
-      "id": "d998ec8d-9afe-4a2c-ba2e-9647d0ead224",
-      "source": "6602a178-49a2-4def-87cd-39e6ab934d08",
-      "target": "9e52255a-a968-463b-8816-4d1a0348ed99",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "a8fe9c2f-2ddc-477a-bd50-31799a24ea23": {
-      "id": "a8fe9c2f-2ddc-477a-bd50-31799a24ea23",
-      "source": "db87135e-1e8b-4c25-a8c3-4a256208e7fe",
-      "target": "257aad34-d724-41d6-b610-87849587c6c2",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "3a2c1ba0-c852-4706-91ff-2cac398adcca": {
-      "id": "3a2c1ba0-c852-4706-91ff-2cac398adcca",
-      "source": "5e805f6a-5714-4d32-87f5-6c311bb92e75",
-      "target": "1c0c9269-3d2d-4019-88ac-6fbd1441f30d",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "a1f85f9e-9359-4001-9d54-c9af2f8227e3": {
-      "id": "a1f85f9e-9359-4001-9d54-c9af2f8227e3",
-      "source": "d61c00f4-8a9f-4dff-90f9-f27ec1f534fd",
-      "target": "462651be-3106-4aa3-9599-c76cf2573cdc",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "0fcd76f5-3fa9-4768-838f-8e2a7cd95e0b": {
-      "id": "0fcd76f5-3fa9-4768-838f-8e2a7cd95e0b",
-      "source": "f3fef35c-2848-48dd-a20b-49902b7a09bd",
-      "target": "9bf52e6b-6638-4593-9b23-fb7c6ad777ec",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "8ab7f8c7-1d97-4c17-9739-b2ad797a51a9": {
-      "id": "8ab7f8c7-1d97-4c17-9739-b2ad797a51a9",
-      "source": "80aed662-3986-4956-9a29-14eb921378d3",
-      "target": "a1e7f68b-c94c-45d9-825c-c4f5758cf4c2",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "2632c08e-d863-451e-9eeb-54ad99432b29": {
-      "id": "2632c08e-d863-451e-9eeb-54ad99432b29",
-      "source": "74c154fe-b43f-46e1-8541-bc3fd813a16a",
-      "target": "19059e7f-c73e-409a-9154-f31e36920293",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "82805275-87ee-4f0e-9975-36b1d96e082c": {
-      "id": "82805275-87ee-4f0e-9975-36b1d96e082c",
-      "source": "61a0abd4-255f-42ba-8209-1397463f44de",
-      "target": "cc21031b-0fec-4e08-b977-1b4c5e5bb251",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "677eaba9-830f-422a-be5f-dfbeebecc3c2": {
-      "id": "677eaba9-830f-422a-be5f-dfbeebecc3c2",
-      "source": "099f6c8e-23bc-431a-b30a-2203938625b8",
-      "target": "1c0c9269-3d2d-4019-88ac-6fbd1441f30d",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "856554ce-9cf1-45e6-8fe3-6d89f271ead5": {
-      "id": "856554ce-9cf1-45e6-8fe3-6d89f271ead5",
-      "source": "a74c83fd-3a11-4f1e-abfa-b4c8af36fe70",
-      "target": "e430b998-7212-4636-8399-b753f7020044",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "da96a74f-e763-47eb-87cd-4fe98ed89f94": {
-      "id": "da96a74f-e763-47eb-87cd-4fe98ed89f94",
-      "source": "187aa458-ef1e-4bd1-a5fa-180f1e36f7e6",
-      "target": "a183a152-eef4-4c9e-ad8e-b0c591ef4a49",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "e247f76c-94d2-4434-93d6-ae8f8de9660e": {
-      "id": "e247f76c-94d2-4434-93d6-ae8f8de9660e",
-      "source": "da1fe973-232f-44f3-8b30-969418e3ef10",
-      "target": "a07dc622-a968-4ba7-a9ba-6da1892ef704",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "f58d7f8d-71d4-48a4-b8c4-6faa6dde4913": {
-      "id": "f58d7f8d-71d4-48a4-b8c4-6faa6dde4913",
-      "source": "dd32ed1e-b2b5-4d5c-acd4-34123338c592",
-      "target": "dec3ce08-2bfb-4b00-a997-8487f5446b16",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "8fa75376-70ba-4719-bfc2-24e63d6a161b": {
-      "id": "8fa75376-70ba-4719-bfc2-24e63d6a161b",
-      "source": "5264a12a-5a37-4af7-90b0-77d2bb7cf570",
-      "target": "a183a152-eef4-4c9e-ad8e-b0c591ef4a49",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "eda81b4d-68a7-4828-9f27-6c74c861750a": {
-      "id": "eda81b4d-68a7-4828-9f27-6c74c861750a",
-      "source": "5715bf9a-fba7-4a36-a811-3fe726ebae74",
-      "target": "fbfcc7e4-6165-4f08-bfca-d8c7f03b42d2",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "893b6e57-ff48-4d63-bd40-97ef7d82ccd7": {
-      "id": "893b6e57-ff48-4d63-bd40-97ef7d82ccd7",
-      "source": "6a26cf07-5b4c-49d4-85a4-df9f480c4b1f",
-      "target": "33192268-71aa-4bfb-9fd1-25068c63f334",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "72480fbb-b08e-4303-aa09-857de30d1528": {
-      "id": "72480fbb-b08e-4303-aa09-857de30d1528",
-      "source": "1c0c9269-3d2d-4019-88ac-6fbd1441f30d",
-      "target": "2df53784-0972-4f51-85b7-4053b690329d",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "1e3bdf98-7376-40bd-b553-4bbcc7ca529b": {
-      "id": "1e3bdf98-7376-40bd-b553-4bbcc7ca529b",
-      "source": "42f04939-cffe-4919-ae26-0db27c3d16ce",
-      "target": "fbfcc7e4-6165-4f08-bfca-d8c7f03b42d2",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "82b47615-9155-4b87-8774-5905f7c15770": {
-      "id": "82b47615-9155-4b87-8774-5905f7c15770",
-      "source": "c8e265d3-c9e6-468d-8464-ae07a2612cfb",
-      "target": "283cc533-14f8-4a7b-8192-54d3e680cf3c",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "f536d827-713e-42a0-9dbe-63a3e114c638": {
-      "id": "f536d827-713e-42a0-9dbe-63a3e114c638",
-      "source": "37d81f17-34f8-4287-963d-77fe1f9f500c",
-      "target": "5264a12a-5a37-4af7-90b0-77d2bb7cf570",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "68e97be1-8df5-4db5-b56e-316d239ea426": {
-      "id": "68e97be1-8df5-4db5-b56e-316d239ea426",
-      "source": "117abb60-b2c1-4426-a84e-685105e5addd",
-      "target": "e471e8b0-532b-4d75-9b98-72c389ac6438",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "28470c1a-d1f8-46f9-a45a-674e172e0acf": {
-      "id": "28470c1a-d1f8-46f9-a45a-674e172e0acf",
-      "source": "d223402a-6552-4b0a-af07-fb1bede06c2b",
-      "target": "442c3275-26e5-4a82-a0f2-168a59bbd161",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "ec827c82-2fb0-4a9d-9e55-bee834bf2360": {
-      "id": "ec827c82-2fb0-4a9d-9e55-bee834bf2360",
-      "source": "3c39ac07-acfe-4902-992d-ff3474f33ff6",
-      "target": "92d01665-d67c-42d2-935e-54b0ec01d9c9",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "e53d2eb6-6ca0-4c41-9372-9b33bfaf3614": {
-      "id": "e53d2eb6-6ca0-4c41-9372-9b33bfaf3614",
-      "source": "114ab3b7-e42b-4a1b-9177-501453910458",
-      "target": "462651be-3106-4aa3-9599-c76cf2573cdc",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "f9955bfd-229b-4cda-b400-d21cf16dac2a": {
-      "id": "f9955bfd-229b-4cda-b400-d21cf16dac2a",
-      "source": "7dfd8bb8-3f5e-4e3b-9b6a-32536ef47eea",
-      "target": "c3b1f8bd-5aa1-42cc-a69f-e67c9d74f664",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "9021c890-9eb6-48bc-8631-11cfa19776f7": {
-      "id": "9021c890-9eb6-48bc-8631-11cfa19776f7",
-      "source": "dc915694-cb84-478d-a40b-ac0ae2db9e38",
-      "target": "114ab3b7-e42b-4a1b-9177-501453910458",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "4eb7f75e-e9eb-4c41-b0eb-f555c0296b55": {
-      "id": "4eb7f75e-e9eb-4c41-b0eb-f555c0296b55",
-      "source": "85f48868-9074-4bfd-b01c-04b1c9f5fe40",
-      "target": "9cc7e6d6-7865-4221-a74e-b5b24defd3d6",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "881dddea-6395-477a-841a-eca78d4f263b": {
-      "id": "881dddea-6395-477a-841a-eca78d4f263b",
-      "source": "c48a0364-818c-4cc4-b7f5-a264759e17d8",
-      "target": "442c3275-26e5-4a82-a0f2-168a59bbd161",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "c6d7ccb7-1b7f-4547-9ab1-70135b4f70ec": {
-      "id": "c6d7ccb7-1b7f-4547-9ab1-70135b4f70ec",
-      "source": "e471e8b0-532b-4d75-9b98-72c389ac6438",
-      "target": "ff78d182-580d-4e17-bb54-d7e5c078680f",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "1a3e227b-8e16-4934-8d76-3324abaaa6fb": {
-      "id": "1a3e227b-8e16-4934-8d76-3324abaaa6fb",
-      "source": "2a48756e-d248-433e-98f4-cbddfbb2fdf7",
-      "target": "e471e8b0-532b-4d75-9b98-72c389ac6438",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "0faaa6da-6ed4-41be-9759-9dabdb5a121f": {
-      "id": "0faaa6da-6ed4-41be-9759-9dabdb5a121f",
-      "source": "6039201a-1faa-45f9-924c-da937ed40a62",
-      "target": "b7c08b16-3fff-4534-a45d-62e22093de4e",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "c9bf117d-511c-4950-9fbb-1cf873bce899": {
-      "id": "c9bf117d-511c-4950-9fbb-1cf873bce899",
-      "source": "60e9da8a-89ce-462a-8d1e-f44af0d5a6ee",
-      "target": "cc21031b-0fec-4e08-b977-1b4c5e5bb251",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "1b68992b-fa62-4c74-a1f9-48eb2fb0eeca": {
-      "id": "1b68992b-fa62-4c74-a1f9-48eb2fb0eeca",
-      "source": "d5b1973d-69f3-4338-8af6-8239501ce824",
-      "target": "5d9d4bfd-484a-409c-b217-86046bca4413",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "eabb4e39-b46b-4f02-a204-9cf99f8735c0": {
-      "id": "eabb4e39-b46b-4f02-a204-9cf99f8735c0",
-      "source": "4d081802-aebe-404c-95e3-7230ec873275",
-      "target": "114ab3b7-e42b-4a1b-9177-501453910458",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "9889da84-afab-4436-918f-75e9bbfc6f95": {
-      "id": "9889da84-afab-4436-918f-75e9bbfc6f95",
-      "source": "b7c08b16-3fff-4534-a45d-62e22093de4e",
-      "target": "1c54b2a9-900d-440c-95cc-bdc8950a0a56",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "1ff645d0-a8a6-42ab-8bb5-922758fb9e62": {
-      "id": "1ff645d0-a8a6-42ab-8bb5-922758fb9e62",
-      "source": "fbfcc7e4-6165-4f08-bfca-d8c7f03b42d2",
-      "target": "8c3b1576-2fe9-484e-b936-9ed8337c064d",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "2e92ecac-ac10-4af8-b175-0c33d6e178c5": {
-      "id": "2e92ecac-ac10-4af8-b175-0c33d6e178c5",
-      "source": "95373d0b-92a9-47d0-acd3-0e1d529053d2",
-      "target": "1c54b2a9-900d-440c-95cc-bdc8950a0a56",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "26f03b8e-10df-4ba8-82cd-7fd52e50bf8b": {
-      "id": "26f03b8e-10df-4ba8-82cd-7fd52e50bf8b",
-      "source": "33192268-71aa-4bfb-9fd1-25068c63f334",
-      "target": "5d9d4bfd-484a-409c-b217-86046bca4413",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "ca5a5bee-8363-40a2-82ad-494c42532d61": {
-      "id": "ca5a5bee-8363-40a2-82ad-494c42532d61",
-      "source": "879be918-4cb8-4352-919b-65b63d98f305",
-      "target": "840c3ecc-0515-4a8a-a7c1-73067965671f",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "4e7513dc-5711-494b-a3c9-3176be6633cf": {
-      "id": "4e7513dc-5711-494b-a3c9-3176be6633cf",
-      "source": "c3b1f8bd-5aa1-42cc-a69f-e67c9d74f664",
-      "target": "a1e7f68b-c94c-45d9-825c-c4f5758cf4c2",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "92285454-eff4-4133-820a-859a34ac37fd": {
-      "id": "92285454-eff4-4133-820a-859a34ac37fd",
-      "source": "901a9744-9723-485b-a82d-cb4e952ce40d",
-      "target": "33192268-71aa-4bfb-9fd1-25068c63f334",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "80a8fa20-f9fb-4553-8cfc-f2e411324985": {
-      "id": "80a8fa20-f9fb-4553-8cfc-f2e411324985",
-      "source": "fb746992-7e81-4741-aa87-deaca2a3c068",
-      "target": "14d80011-f389-470b-b454-3200df9e72cb",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "7d82ef80-0889-47bf-b13b-6331d34b2326": {
-      "id": "7d82ef80-0889-47bf-b13b-6331d34b2326",
-      "source": "9e52255a-a968-463b-8816-4d1a0348ed99",
-      "target": "92d01665-d67c-42d2-935e-54b0ec01d9c9",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "65113d38-7bb7-4644-af93-2009845e5103": {
-      "id": "65113d38-7bb7-4644-af93-2009845e5103",
-      "source": "febd74c8-b883-412f-a3b8-c98de56d127f",
-      "target": "19059e7f-c73e-409a-9154-f31e36920293",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "f7ea4677-3610-42bb-b557-6422c7980d6b": {
-      "id": "f7ea4677-3610-42bb-b557-6422c7980d6b",
-      "source": "8d8e8b12-54cb-47a5-82bc-18a90d16def4",
-      "target": "483e9b63-083e-4937-9d38-fb7985302658",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "91a45af9-3199-4028-b928-5cfa343a4f44": {
-      "id": "91a45af9-3199-4028-b928-5cfa343a4f44",
-      "source": "9f49c45f-e704-4097-9752-54de1a81cc30",
-      "target": "9bf52e6b-6638-4593-9b23-fb7c6ad777ec",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "59eceeb2-f3e6-4c95-bb1a-83b1695e5ff1": {
-      "id": "59eceeb2-f3e6-4c95-bb1a-83b1695e5ff1",
-      "source": "476b6c28-f4f0-4aec-a786-1ee9e5cd6290",
-      "target": "ff78d182-580d-4e17-bb54-d7e5c078680f",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "d0a43d1f-e284-47da-9cc9-64fc62eb845e": {
-      "id": "d0a43d1f-e284-47da-9cc9-64fc62eb845e",
-      "source": "66a62bbd-55c3-451a-8f5d-430e38a8951b",
-      "target": "044b8827-04b4-461f-a3a9-51d584ec9e84",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "43ce4315-a812-4204-ad24-672ad8ab1b17": {
-      "id": "43ce4315-a812-4204-ad24-672ad8ab1b17",
-      "source": "06992468-9a54-44c1-8f2a-734275eba605",
-      "target": "14d80011-f389-470b-b454-3200df9e72cb",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "5f19859a-0b3e-4cc1-87b9-582bf442ab60": {
-      "id": "5f19859a-0b3e-4cc1-87b9-582bf442ab60",
-      "source": "19059e7f-c73e-409a-9154-f31e36920293",
-      "target": "9cc7e6d6-7865-4221-a74e-b5b24defd3d6",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "78e64677-0956-4e25-9d97-3ec1fa282c61": {
-      "id": "78e64677-0956-4e25-9d97-3ec1fa282c61",
-      "source": "17e8f960-d7b4-4b31-b83b-768f6f83b4cc",
-      "target": "670eda80-344c-41aa-8f2b-1b1e8560c001",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "1b894942-5746-43cf-b8f7-dbb4feca81ac": {
-      "id": "1b894942-5746-43cf-b8f7-dbb4feca81ac",
-      "source": "50238a0a-4299-436a-b360-df5b9d8e253a",
-      "target": "257aad34-d724-41d6-b610-87849587c6c2",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "23622587-efd8-4a55-8a5e-c144de27c458": {
-      "id": "23622587-efd8-4a55-8a5e-c144de27c458",
-      "source": "38de20b0-f303-4aa4-bc6a-3892a15fbfd2",
-      "target": "26f33f71-c855-49e9-b4ef-ae9982ce4898",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "9d37ce4a-63e7-4f5f-bcf5-1ba88d2e3637": {
-      "id": "9d37ce4a-63e7-4f5f-bcf5-1ba88d2e3637",
-      "source": "9bf52e6b-6638-4593-9b23-fb7c6ad777ec",
-      "target": "483e9b63-083e-4937-9d38-fb7985302658",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "5eb118bb-2615-4426-92e1-1aefbed8e660": {
-      "id": "5eb118bb-2615-4426-92e1-1aefbed8e660",
-      "source": "9e9105f6-efe6-4048-8f43-873d16c66344",
-      "target": "26f33f71-c855-49e9-b4ef-ae9982ce4898",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "7b9d4842-76bd-4bc0-8e9b-25b069d759a8": {
-      "id": "7b9d4842-76bd-4bc0-8e9b-25b069d759a8",
-      "source": "e2a66638-f631-4718-a5fc-642a32c1b4df",
-      "target": "c3b1f8bd-5aa1-42cc-a69f-e67c9d74f664",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "b310a932-058b-4a81-954b-2874582625af": {
-      "id": "b310a932-058b-4a81-954b-2874582625af",
-      "source": "49e96714-54a3-41cb-82c6-294a8b92aaac",
-      "target": "9e52255a-a968-463b-8816-4d1a0348ed99",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "4c8ed461-ac59-4118-b123-ab20b4f41410": {
-      "id": "4c8ed461-ac59-4118-b123-ab20b4f41410",
-      "source": "1552eb2a-18a2-4ad9-b41b-cce4d564f7f5",
-      "target": "b7c08b16-3fff-4534-a45d-62e22093de4e",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "c0573055-f614-4953-b844-eb2432bfa19f": {
-      "id": "c0573055-f614-4953-b844-eb2432bfa19f",
-      "source": "257aad34-d724-41d6-b610-87849587c6c2",
-      "target": "4b6531bb-d94f-4250-a5de-fed93e0a5353",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "f75a7e59-ce80-4e65-a5a0-79f8676c5d57": {
-      "id": "f75a7e59-ce80-4e65-a5a0-79f8676c5d57",
-      "source": "3551d9e9-25b3-4b48-8bef-24951ab43ff2",
-      "target": "5264a12a-5a37-4af7-90b0-77d2bb7cf570",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "72cce6f8-8a3a-4ab4-9c79-ffdb8c875541": {
-      "id": "72cce6f8-8a3a-4ab4-9c79-ffdb8c875541",
-      "source": "442c3275-26e5-4a82-a0f2-168a59bbd161",
-      "target": "283cc533-14f8-4a7b-8192-54d3e680cf3c",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "e95d9fcb-e2a5-4fff-b2ff-1cb203093746": {
-      "id": "e95d9fcb-e2a5-4fff-b2ff-1cb203093746",
-      "source": "70607a91-7b8c-4a1b-9ee0-fabfbec028ad",
-      "target": "4b6531bb-d94f-4250-a5de-fed93e0a5353",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "f9bb0882-e5be-4c8b-913e-e55de589a6c3": {
-      "id": "f9bb0882-e5be-4c8b-913e-e55de589a6c3",
-      "source": "dec3ce08-2bfb-4b00-a997-8487f5446b16",
-      "target": "2482e41c-7948-40ba-a3d5-49821190fb28",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "8741b6cc-2f69-4fce-b270-4c47066c7c67": {
-      "id": "8741b6cc-2f69-4fce-b270-4c47066c7c67",
-      "source": "d86553c9-cf4e-4c8f-9e9f-1299865b4d29",
-      "target": "8c3b1576-2fe9-484e-b936-9ed8337c064d",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "a26cf796-1d6e-46c9-98cf-9b07825b62fb": {
-      "id": "a26cf796-1d6e-46c9-98cf-9b07825b62fb",
-      "source": "16856d30-b482-47f5-9f35-2acbc7cf0f9b",
-      "target": "044b8827-04b4-461f-a3a9-51d584ec9e84",
-      "label": "tests",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "c03b20ae-3a4a-414b-83fb-2de39910f2bb": {
-      "id": "c03b20ae-3a4a-414b-83fb-2de39910f2bb",
-      "source": "14d80011-f389-470b-b454-3200df9e72cb",
-      "target": "a07dc622-a968-4ba7-a9ba-6da1892ef704",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "ea607b47-3432-411e-b275-355877ecb778": {
-      "id": "ea607b47-3432-411e-b275-355877ecb778",
-      "source": "4dad6ee3-9b97-4a24-a81e-9dd06390d632",
-      "target": "2df53784-0972-4f51-85b7-4053b690329d",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "fdd8a228-958a-4d75-851a-6fff46390126": {
-      "id": "fdd8a228-958a-4d75-851a-6fff46390126",
-      "source": "cc21031b-0fec-4e08-b977-1b4c5e5bb251",
-      "target": "840c3ecc-0515-4a8a-a7c1-73067965671f",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "e35fbd3a-2d6b-4a10-86e2-ea06234bcff8": {
-      "id": "e35fbd3a-2d6b-4a10-86e2-ea06234bcff8",
-      "source": "8571503e-ab4e-4bb3-8830-78ad93a08d81",
-      "target": "2482e41c-7948-40ba-a3d5-49821190fb28",
-      "label": "documents",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "78ca5739-bfb0-43f9-a0ae-c0b9e57a5baf": {
-      "id": "78ca5739-bfb0-43f9-a0ae-c0b9e57a5baf",
-      "source": "26f33f71-c855-49e9-b4ef-ae9982ce4898",
-      "target": "e430b998-7212-4636-8399-b753f7020044",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "974caefd-5dbf-4a41-900d-617b53ba0946": {
-      "id": "974caefd-5dbf-4a41-900d-617b53ba0946",
-      "source": "0ffb0e8b-a807-45ab-a5a4-bc4c2398ff23",
-      "target": "dec3ce08-2bfb-4b00-a997-8487f5446b16",
-      "label": "validates",
-      "weight": null,
-      "color": null,
-      "metadata": {}
-    },
-    "4f2f3e72-f8fc-4c01-bb8a-85281015a97d": {
-      "id": "4f2f3e72-f8fc-4c01-bb8a-85281015a97d",
-      "source": "044b8827-04b4-461f-a3a9-51d584ec9e84",
-      "target": "670eda80-344c-41aa-8f2b-1b1e8560c001",
-      "label": "implements",
-      "weight": null,
-      "color": null,
-      "metadata": {}
+    "9f391daf-40b3-40fe-9924-d803fd3f21c6": {
+      "id": "9f391daf-40b3-40fe-9924-d803fd3f21c6",
+      "source": "4ee0e7e8-eef4-43fb-a3f3-132e2b5d9d3f",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "8dee62c1-619c-48a5-a7f6-8fa105782dd6": {
+      "id": "8dee62c1-619c-48a5-a7f6-8fa105782dd6",
+      "source": "38191eb5-4c09-4a86-8189-5ff8671c0201",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.95)",
+      "weight": 0.95,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Strong",
+        "score": "0.95"
+      }
+    },
+    "a67c8b29-7098-4dd6-8524-fe5db1fd0225": {
+      "id": "a67c8b29-7098-4dd6-8524-fe5db1fd0225",
+      "source": "50105e81-58af-4dc6-9745-690b52845272",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "29399970-f38f-4dd4-85ff-6af39cfb9764": {
+      "id": "29399970-f38f-4dd4-85ff-6af39cfb9764",
+      "source": "0caef0f5-7e88-4c55-accb-195dca3657e2",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 0.9,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "13669102-bd30-4f3f-851a-a8fe8f5d0bec": {
+      "id": "13669102-bd30-4f3f-851a-a8fe8f5d0bec",
+      "source": "6b07a5b7-6083-40ea-a268-0adc5f87633a",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 0.9,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "93901208-65de-464e-b7f1-f7d3822eeb95": {
+      "id": "93901208-65de-464e-b7f1-f7d3822eeb95",
+      "source": "093e8bfa-14cd-425d-8900-b4e2cf310907",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.90)",
+      "weight": 0.9,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Strong",
+        "score": "0.9"
+      }
+    },
+    "277311d8-79c6-4c6a-b912-f79d9682cefd": {
+      "id": "277311d8-79c6-4c6a-b912-f79d9682cefd",
+      "source": "26946bf8-9f1e-40ab-a173-7a3a53e7304a",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "c0ece526-8a64-44bf-9ec9-aa70460fea0d": {
+      "id": "c0ece526-8a64-44bf-9ec9-aa70460fea0d",
+      "source": "35a84e8b-5bfd-409b-baf4-7153797d8d49",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.85)",
+      "weight": 0.85,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.85",
+        "type": "alignment",
+        "strength": "Strong"
+      }
+    },
+    "454aaaeb-ee46-43b7-ab84-7009c7aa688a": {
+      "id": "454aaaeb-ee46-43b7-ab84-7009c7aa688a",
+      "source": "26946bf8-9f1e-40ab-a173-7a3a53e7304a",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.60)",
+      "weight": 0.6,
+      "color": "#f39c12",
+      "metadata": {
+        "strength": "Moderate",
+        "type": "alignment",
+        "score": "0.6"
+      }
+    },
+    "5d5bd2de-acd1-41a6-b23c-48e3129248b5": {
+      "id": "5d5bd2de-acd1-41a6-b23c-48e3129248b5",
+      "source": "aac3eb43-bb84-4700-8fa2-9a055686b524",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.95)",
+      "weight": 0.95,
+      "color": "#27ae60",
+      "metadata": {
+        "strength": "Strong",
+        "score": "0.95",
+        "type": "alignment"
+      }
+    },
+    "69e7e1ae-a1ff-49de-bb67-a015925a585b": {
+      "id": "69e7e1ae-a1ff-49de-bb67-a015925a585b",
+      "source": "123b688d-2d43-434b-ae75-5afc1b36e295",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "e819c129-fc97-4360-840e-e7f61fb5b085": {
+      "id": "e819c129-fc97-4360-840e-e7f61fb5b085",
+      "source": "35a84e8b-5bfd-409b-baf4-7153797d8d49",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "f024c849-3c52-4cad-a438-53e97fac9161": {
+      "id": "f024c849-3c52-4cad-a438-53e97fac9161",
+      "source": "021a7bef-3ee4-4682-b467-473daf86f4d4",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 0.9,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "1b526892-ecd4-45cd-bb28-d09ee6385402": {
+      "id": "1b526892-ecd4-45cd-bb28-d09ee6385402",
+      "source": "c218ccac-2d00-48c6-8ce0-fd60746c4023",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "extracted_from",
+      "weight": 0.9,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "14490d12-eb75-429f-ac53-22eb1b559f8e": {
+      "id": "14490d12-eb75-429f-ac53-22eb1b559f8e",
+      "source": "968a9d63-aa7c-414b-aa17-82fca9bee9ca",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.85)",
+      "weight": 0.85,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.85",
+        "type": "alignment",
+        "strength": "Strong"
+      }
+    },
+    "72392a26-e683-4ba9-ad88-879754a7c951": {
+      "id": "72392a26-e683-4ba9-ad88-879754a7c951",
+      "source": "35a84e8b-5bfd-409b-baf4-7153797d8d49",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.85)",
+      "weight": 0.85,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Strong",
+        "score": "0.85"
+      }
+    },
+    "d75b089c-e1bc-4c3d-8358-54ac4e9edb41": {
+      "id": "d75b089c-e1bc-4c3d-8358-54ac4e9edb41",
+      "source": "7977ec29-e716-4fd5-8aa6-ea9269e38c11",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (1.00)",
+      "weight": 1.0,
+      "color": "#27ae60",
+      "metadata": {
+        "strength": "Strong",
+        "score": "1",
+        "type": "alignment"
+      }
+    },
+    "64c6120f-f376-4f61-9594-1edc93ff5d85": {
+      "id": "64c6120f-f376-4f61-9594-1edc93ff5d85",
+      "source": "0caef0f5-7e88-4c55-accb-195dca3657e2",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.40)",
+      "weight": 0.4,
+      "color": "#f39c12",
+      "metadata": {
+        "type": "alignment",
+        "score": "0.4",
+        "strength": "Moderate"
+      }
+    },
+    "e959b4ec-bf42-4aa1-baa8-6985463f33d4": {
+      "id": "e959b4ec-bf42-4aa1-baa8-6985463f33d4",
+      "source": "3d42be21-5bb8-47a8-aded-37844eab8e39",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.80)",
+      "weight": 0.8,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Strong",
+        "score": "0.8"
+      }
+    },
+    "ccbe2aa0-cda5-4054-9917-33c3c1727a48": {
+      "id": "ccbe2aa0-cda5-4054-9917-33c3c1727a48",
+      "source": "021a7bef-3ee4-4682-b467-473daf86f4d4",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.75)",
+      "weight": 0.75,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.75",
+        "strength": "Strong",
+        "type": "alignment"
+      }
+    },
+    "3b9d0094-bff8-4c93-933f-64f970eaf878": {
+      "id": "3b9d0094-bff8-4c93-933f-64f970eaf878",
+      "source": "6c215362-fe37-424c-b9af-fe9a51e9959a",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.40)",
+      "weight": 0.4,
+      "color": "#f39c12",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Moderate",
+        "score": "0.4"
+      }
+    },
+    "2eceb579-1d3e-4fe6-b583-7edc493213c2": {
+      "id": "2eceb579-1d3e-4fe6-b583-7edc493213c2",
+      "source": "38191eb5-4c09-4a86-8189-5ff8671c0201",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.85)",
+      "weight": 0.85,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.85",
+        "strength": "Strong",
+        "type": "alignment"
+      }
+    },
+    "dc5af498-9c7a-4522-a321-c54963bd0fe8": {
+      "id": "dc5af498-9c7a-4522-a321-c54963bd0fe8",
+      "source": "50105e81-58af-4dc6-9745-690b52845272",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.80)",
+      "weight": 0.8,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Strong",
+        "score": "0.8"
+      }
+    },
+    "80a49225-5582-4701-97b3-8c81573a457c": {
+      "id": "80a49225-5582-4701-97b3-8c81573a457c",
+      "source": "f297c6f4-be2d-4e9b-b88b-965ee7d84b83",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 0.8,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "7166bbcc-4760-49da-bff6-43940993098f": {
+      "id": "7166bbcc-4760-49da-bff6-43940993098f",
+      "source": "9243747c-711b-4481-977d-2347db72edc4",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.30)",
+      "weight": 0.3,
+      "color": "#e74c3c",
+      "metadata": {
+        "score": "0.3",
+        "strength": "Weak",
+        "type": "alignment"
+      }
+    },
+    "b6fd099d-22ef-47a6-8726-257586e29fd7": {
+      "id": "b6fd099d-22ef-47a6-8726-257586e29fd7",
+      "source": "b8792c18-7e82-43fc-b7ea-5fc4f652476f",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "4434bbce-2a62-49cf-bd73-7f5c7bff3fc0": {
+      "id": "4434bbce-2a62-49cf-bd73-7f5c7bff3fc0",
+      "source": "6b07a5b7-6083-40ea-a268-0adc5f87633a",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.70)",
+      "weight": 0.7,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "score": "0.7",
+        "strength": "Strong"
+      }
+    },
+    "dd8d7c7d-2613-4294-98af-90be6a1f307b": {
+      "id": "dd8d7c7d-2613-4294-98af-90be6a1f307b",
+      "source": "35766834-5c72-4beb-a28f-f788847f34ca",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.70)",
+      "weight": 0.7,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.7",
+        "strength": "Strong",
+        "type": "alignment"
+      }
+    },
+    "521dfc63-191a-48ef-bacf-34805f34e24b": {
+      "id": "521dfc63-191a-48ef-bacf-34805f34e24b",
+      "source": "38191eb5-4c09-4a86-8189-5ff8671c0201",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 0.9,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "07913232-27df-47ca-b0af-0a9e0e6edbef": {
+      "id": "07913232-27df-47ca-b0af-0a9e0e6edbef",
+      "source": "a0fe8f60-8873-4d18-a36a-3eb5ccded3cf",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (1.00)",
+      "weight": 1.0,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "score": "1",
+        "strength": "Strong"
+      }
+    },
+    "9672fd5a-776c-4039-9ae7-913bdc245379": {
+      "id": "9672fd5a-776c-4039-9ae7-913bdc245379",
+      "source": "6c215362-fe37-424c-b9af-fe9a51e9959a",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "extracted_from",
+      "weight": 0.9,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "736a1cab-178c-4748-8f66-7e3b146cd789": {
+      "id": "736a1cab-178c-4748-8f66-7e3b146cd789",
+      "source": "8ecde0e9-b580-460a-9c5c-87a9054322a9",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "f093aafd-3edf-42f1-8157-2530366ddab5": {
+      "id": "f093aafd-3edf-42f1-8157-2530366ddab5",
+      "source": "123b688d-2d43-434b-ae75-5afc1b36e295",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.50)",
+      "weight": 0.5,
+      "color": "#f39c12",
+      "metadata": {
+        "score": "0.5",
+        "type": "alignment",
+        "strength": "Moderate"
+      }
+    },
+    "c1327e59-c72e-48b1-9fa3-47ed017f9d92": {
+      "id": "c1327e59-c72e-48b1-9fa3-47ed017f9d92",
+      "source": "3d42be21-5bb8-47a8-aded-37844eab8e39",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.30)",
+      "weight": 0.3,
+      "color": "#e74c3c",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Weak",
+        "score": "0.3"
+      }
+    },
+    "707c89aa-0a2a-4b8e-b0c1-563b5dc53bdc": {
+      "id": "707c89aa-0a2a-4b8e-b0c1-563b5dc53bdc",
+      "source": "8ecde0e9-b580-460a-9c5c-87a9054322a9",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.90)",
+      "weight": 0.9,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Strong",
+        "score": "0.9"
+      }
+    },
+    "93364f4e-e26f-461c-bd92-8350f3432652": {
+      "id": "93364f4e-e26f-461c-bd92-8350f3432652",
+      "source": "093e8bfa-14cd-425d-8900-b4e2cf310907",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.20)",
+      "weight": 0.2,
+      "color": "#e74c3c",
+      "metadata": {
+        "type": "alignment",
+        "score": "0.2",
+        "strength": "Weak"
+      }
+    },
+    "924a8c0c-597d-4add-a012-c66765491106": {
+      "id": "924a8c0c-597d-4add-a012-c66765491106",
+      "source": "7fce3b7d-996a-488d-bbed-a11a21d2fcac",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.80)",
+      "weight": 0.8,
+      "color": "#27ae60",
+      "metadata": {
+        "strength": "Strong",
+        "type": "alignment",
+        "score": "0.8"
+      }
+    },
+    "1485c53c-10b0-457f-8a10-ccc65da4f914": {
+      "id": "1485c53c-10b0-457f-8a10-ccc65da4f914",
+      "source": "b8792c18-7e82-43fc-b7ea-5fc4f652476f",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.85)",
+      "weight": 0.85,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.85",
+        "strength": "Strong",
+        "type": "alignment"
+      }
+    },
+    "def534ec-76a2-409e-ba6b-0d8fd0d1beea": {
+      "id": "def534ec-76a2-409e-ba6b-0d8fd0d1beea",
+      "source": "43be1eee-f233-469a-aa59-77966c8292ee",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "cfcc6b3f-bdac-43cd-bffc-296ef834f0b8": {
+      "id": "cfcc6b3f-bdac-43cd-bffc-296ef834f0b8",
+      "source": "7fce3b7d-996a-488d-bbed-a11a21d2fcac",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "15af7d26-7369-475f-a1e2-e89810cdb812": {
+      "id": "15af7d26-7369-475f-a1e2-e89810cdb812",
+      "source": "9243747c-711b-4481-977d-2347db72edc4",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "1c60aeee-ee7d-4a6c-817e-4dc5d4694c3a": {
+      "id": "1c60aeee-ee7d-4a6c-817e-4dc5d4694c3a",
+      "source": "093e8bfa-14cd-425d-8900-b4e2cf310907",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "c8354e68-f0d8-46fa-af42-411f838aa95d": {
+      "id": "c8354e68-f0d8-46fa-af42-411f838aa95d",
+      "source": "7977ec29-e716-4fd5-8aa6-ea9269e38c11",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (1.00)",
+      "weight": 1.0,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "1",
+        "strength": "Strong",
+        "type": "alignment"
+      }
+    },
+    "0d61a2fe-a145-4af8-930e-371b3b5e1e75": {
+      "id": "0d61a2fe-a145-4af8-930e-371b3b5e1e75",
+      "source": "a0fe8f60-8873-4d18-a36a-3eb5ccded3cf",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.90)",
+      "weight": 0.9,
+      "color": "#27ae60",
+      "metadata": {
+        "strength": "Strong",
+        "type": "alignment",
+        "score": "0.9"
+      }
+    },
+    "30a12a95-0fa0-4edc-988c-6ec6add7cabd": {
+      "id": "30a12a95-0fa0-4edc-988c-6ec6add7cabd",
+      "source": "0caef0f5-7e88-4c55-accb-195dca3657e2",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.40)",
+      "weight": 0.4,
+      "color": "#f39c12",
+      "metadata": {
+        "score": "0.4",
+        "strength": "Moderate",
+        "type": "alignment"
+      }
+    },
+    "e6df1fd2-e1d5-48ac-82e2-efebbed154a5": {
+      "id": "e6df1fd2-e1d5-48ac-82e2-efebbed154a5",
+      "source": "50105e81-58af-4dc6-9745-690b52845272",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.80)",
+      "weight": 0.8,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.8",
+        "type": "alignment",
+        "strength": "Strong"
+      }
+    },
+    "f8b6d7e8-cedf-4d5c-8962-ee2dbb5f8ee9": {
+      "id": "f8b6d7e8-cedf-4d5c-8962-ee2dbb5f8ee9",
+      "source": "7977ec29-e716-4fd5-8aa6-ea9269e38c11",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "18c6ea58-cdf6-48cf-b52b-d278efbcbdd8": {
+      "id": "18c6ea58-cdf6-48cf-b52b-d278efbcbdd8",
+      "source": "f297c6f4-be2d-4e9b-b88b-965ee7d84b83",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.30)",
+      "weight": 0.3,
+      "color": "#e74c3c",
+      "metadata": {
+        "score": "0.3",
+        "type": "alignment",
+        "strength": "Weak"
+      }
+    },
+    "5fde8006-e9c3-4860-81ac-0dbaa918186c": {
+      "id": "5fde8006-e9c3-4860-81ac-0dbaa918186c",
+      "source": "9243747c-711b-4481-977d-2347db72edc4",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.50)",
+      "weight": 0.5,
+      "color": "#f39c12",
+      "metadata": {
+        "strength": "Moderate",
+        "score": "0.5",
+        "type": "alignment"
+      }
+    },
+    "bd5ae07c-6e96-40ce-8423-4f5fb0f0c88f": {
+      "id": "bd5ae07c-6e96-40ce-8423-4f5fb0f0c88f",
+      "source": "26946bf8-9f1e-40ab-a173-7a3a53e7304a",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.90)",
+      "weight": 0.9,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.9",
+        "type": "alignment",
+        "strength": "Strong"
+      }
+    },
+    "4bed9cbe-77a4-4b23-b54e-5c6576da73ae": {
+      "id": "4bed9cbe-77a4-4b23-b54e-5c6576da73ae",
+      "source": "bf43a49b-027d-457a-b60d-dc199c3a0281",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "e133efc6-502e-4605-a63c-3c519863c206": {
+      "id": "e133efc6-502e-4605-a63c-3c519863c206",
+      "source": "a0fe8f60-8873-4d18-a36a-3eb5ccded3cf",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "08904ce2-2ff3-435d-be7e-928be2991725": {
+      "id": "08904ce2-2ff3-435d-be7e-928be2991725",
+      "source": "f297c6f4-be2d-4e9b-b88b-965ee7d84b83",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.80)",
+      "weight": 0.8,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "strength": "Strong",
+        "score": "0.8"
+      }
+    },
+    "7e821cb1-aad0-43bb-89bb-4505b8dc24da": {
+      "id": "7e821cb1-aad0-43bb-89bb-4505b8dc24da",
+      "source": "968a9d63-aa7c-414b-aa17-82fca9bee9ca",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "595298b4-a220-43a1-88cb-a782fe3a749e": {
+      "id": "595298b4-a220-43a1-88cb-a782fe3a749e",
+      "source": "b8792c18-7e82-43fc-b7ea-5fc4f652476f",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.90)",
+      "weight": 0.9,
+      "color": "#27ae60",
+      "metadata": {
+        "strength": "Strong",
+        "type": "alignment",
+        "score": "0.9"
+      }
+    },
+    "5cb54a1b-9948-432f-b66e-f28d6f19dbd6": {
+      "id": "5cb54a1b-9948-432f-b66e-f28d6f19dbd6",
+      "source": "27056903-f9f1-4b97-a070-0cdc4bbdeae2",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.90)",
+      "weight": 0.9,
+      "color": "#27ae60",
+      "metadata": {
+        "strength": "Strong",
+        "type": "alignment",
+        "score": "0.9"
+      }
+    },
+    "4e208de6-5250-448b-944a-5357221c7315": {
+      "id": "4e208de6-5250-448b-944a-5357221c7315",
+      "source": "aac3eb43-bb84-4700-8fa2-9a055686b524",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.80)",
+      "weight": 0.8,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.8",
+        "type": "alignment",
+        "strength": "Strong"
+      }
+    },
+    "18ca91cb-5477-4333-8b6a-fe4bc6c50bd9": {
+      "id": "18ca91cb-5477-4333-8b6a-fe4bc6c50bd9",
+      "source": "6c215362-fe37-424c-b9af-fe9a51e9959a",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.30)",
+      "weight": 0.3,
+      "color": "#e74c3c",
+      "metadata": {
+        "strength": "Weak",
+        "score": "0.3",
+        "type": "alignment"
+      }
+    },
+    "aefcf780-7fbc-44ef-af0b-2d66087b0ffe": {
+      "id": "aefcf780-7fbc-44ef-af0b-2d66087b0ffe",
+      "source": "43be1eee-f233-469a-aa59-77966c8292ee",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.95)",
+      "weight": 0.95,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "score": "0.95",
+        "strength": "Strong"
+      }
+    },
+    "05311b97-9eff-4fd3-983e-b6673bbe31ca": {
+      "id": "05311b97-9eff-4fd3-983e-b6673bbe31ca",
+      "source": "4ee0e7e8-eef4-43fb-a3f3-132e2b5d9d3f",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.30)",
+      "weight": 0.3,
+      "color": "#e74c3c",
+      "metadata": {
+        "type": "alignment",
+        "score": "0.3",
+        "strength": "Weak"
+      }
+    },
+    "4c760d60-89bd-44a6-bb66-2795bd064986": {
+      "id": "4c760d60-89bd-44a6-bb66-2795bd064986",
+      "source": "72cedc73-4642-4b78-8c2a-1d1a8806cb73",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "extracted_from",
+      "weight": 0.9,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "6ece21cb-46cf-4681-9784-f2e1f67adaf2": {
+      "id": "6ece21cb-46cf-4681-9784-f2e1f67adaf2",
+      "source": "7fce3b7d-996a-488d-bbed-a11a21d2fcac",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.10)",
+      "weight": 0.1,
+      "color": "#e74c3c",
+      "metadata": {
+        "strength": "Weak",
+        "score": "0.1",
+        "type": "alignment"
+      }
+    },
+    "dd8e25d6-87c8-4695-bf00-2dc6a58d931b": {
+      "id": "dd8e25d6-87c8-4695-bf00-2dc6a58d931b",
+      "source": "c218ccac-2d00-48c6-8ce0-fd60746c4023",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.00)",
+      "weight": 0.0,
+      "color": "#e74c3c",
+      "metadata": {
+        "score": "0",
+        "strength": "Weak",
+        "type": "alignment"
+      }
+    },
+    "c9b8d07e-9326-4e19-8566-af3dd950ee6f": {
+      "id": "c9b8d07e-9326-4e19-8566-af3dd950ee6f",
+      "source": "aac3eb43-bb84-4700-8fa2-9a055686b524",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "d553643f-6b5a-49e3-b6c5-b14dc09e90ac": {
+      "id": "d553643f-6b5a-49e3-b6c5-b14dc09e90ac",
+      "source": "27056903-f9f1-4b97-a070-0cdc4bbdeae2",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.20)",
+      "weight": 0.2,
+      "color": "#e74c3c",
+      "metadata": {
+        "score": "0.2",
+        "strength": "Weak",
+        "type": "alignment"
+      }
+    },
+    "480f0480-7a76-4a01-b9d7-2a29a1adcb90": {
+      "id": "480f0480-7a76-4a01-b9d7-2a29a1adcb90",
+      "source": "3d42be21-5bb8-47a8-aded-37844eab8e39",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "ec335374-068c-4163-94d9-af66a72658b5": {
+      "id": "ec335374-068c-4163-94d9-af66a72658b5",
+      "source": "968a9d63-aa7c-414b-aa17-82fca9bee9ca",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.95)",
+      "weight": 0.95,
+      "color": "#27ae60",
+      "metadata": {
+        "type": "alignment",
+        "score": "0.95",
+        "strength": "Strong"
+      }
+    },
+    "42620fa2-e482-43f8-8fd9-c47702b58a37": {
+      "id": "42620fa2-e482-43f8-8fd9-c47702b58a37",
+      "source": "27056903-f9f1-4b97-a070-0cdc4bbdeae2",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "a9683cf3-fdde-4bce-a38b-78c4f352109e": {
+      "id": "a9683cf3-fdde-4bce-a38b-78c4f352109e",
+      "source": "035d26f9-4fd8-4324-9da9-356aebf80fbe",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "f1d4c5f7-5c84-46e7-9793-acdfd2b5ebcc": {
+      "id": "f1d4c5f7-5c84-46e7-9793-acdfd2b5ebcc",
+      "source": "35766834-5c72-4beb-a28f-f788847f34ca",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "extracted_from",
+      "weight": 1.0,
+      "color": "#999999",
+      "metadata": {}
+    },
+    "73db5531-ad8a-4563-8c06-34172d51d4ef": {
+      "id": "73db5531-ad8a-4563-8c06-34172d51d4ef",
+      "source": "8ecde0e9-b580-460a-9c5c-87a9054322a9",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.70)",
+      "weight": 0.7,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.7",
+        "type": "alignment",
+        "strength": "Strong"
+      }
+    },
+    "200f0cee-24e0-419b-ab47-fa53496f9e12": {
+      "id": "200f0cee-24e0-419b-ab47-fa53496f9e12",
+      "source": "35766834-5c72-4beb-a28f-f788847f34ca",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.95)",
+      "weight": 0.95,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.95",
+        "strength": "Strong",
+        "type": "alignment"
+      }
+    },
+    "baf2a916-c0b6-418b-819b-8d5cde98c534": {
+      "id": "baf2a916-c0b6-418b-819b-8d5cde98c534",
+      "source": "43be1eee-f233-469a-aa59-77966c8292ee",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.30)",
+      "weight": 0.3,
+      "color": "#e74c3c",
+      "metadata": {
+        "type": "alignment",
+        "score": "0.3",
+        "strength": "Weak"
+      }
+    },
+    "03e952c5-79e9-424b-a57a-7cb2ff1890d3": {
+      "id": "03e952c5-79e9-424b-a57a-7cb2ff1890d3",
+      "source": "6b07a5b7-6083-40ea-a268-0adc5f87633a",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.95)",
+      "weight": 0.95,
+      "color": "#27ae60",
+      "metadata": {
+        "strength": "Strong",
+        "type": "alignment",
+        "score": "0.95"
+      }
+    },
+    "341fe1e7-7b24-4954-9f83-502d23e79922": {
+      "id": "341fe1e7-7b24-4954-9f83-502d23e79922",
+      "source": "4ee0e7e8-eef4-43fb-a3f3-132e2b5d9d3f",
+      "target": "fcdd409d-e6d9-4e59-a999-17fbe061c797",
+      "label": "aligned (0.90)",
+      "weight": 0.9,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.9",
+        "type": "alignment",
+        "strength": "Strong"
+      }
+    },
+    "dc596d4b-211b-4229-9227-5c91748621d0": {
+      "id": "dc596d4b-211b-4229-9227-5c91748621d0",
+      "source": "c218ccac-2d00-48c6-8ce0-fd60746c4023",
+      "target": "186a2895-96f9-46dc-b0b5-6c8387eecbd2",
+      "label": "aligned (0.70)",
+      "weight": 0.7,
+      "color": "#27ae60",
+      "metadata": {
+        "score": "0.7",
+        "strength": "Strong",
+        "type": "alignment"
+      }
+    },
+    "6452e404-2186-4c6d-bbc0-209953e42116": {
+      "id": "6452e404-2186-4c6d-bbc0-209953e42116",
+      "source": "021a7bef-3ee4-4682-b467-473daf86f4d4",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.20)",
+      "weight": 0.2,
+      "color": "#e74c3c",
+      "metadata": {
+        "strength": "Weak",
+        "score": "0.2",
+        "type": "alignment"
+      }
+    },
+    "6737bfc6-70a7-4876-ba23-866424a185a1": {
+      "id": "6737bfc6-70a7-4876-ba23-866424a185a1",
+      "source": "123b688d-2d43-434b-ae75-5afc1b36e295",
+      "target": "19495689-49f8-45fd-8c60-b7a2837a89be",
+      "label": "aligned (0.30)",
+      "weight": 0.3,
+      "color": "#e74c3c",
+      "metadata": {
+        "score": "0.3",
+        "type": "alignment",
+        "strength": "Weak"
+      }
     }
   }
 }

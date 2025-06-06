@@ -60,27 +60,29 @@ pub struct ClaudeClaimExtractor {
 
 impl ClaudeClaimExtractor {
     pub fn new(api_key: String) -> Self {
-        let client = ClaudeClient::new(api_key);
+        let client = ClaudeClient::new(api_key)
+            .with_caching(true); // Enable caching for claim extraction
         let config = RetryConfig::default();
         let query_resolver = QueryResolver::new(client, config);
         
         Self { query_resolver }
     }
 
-    /// Generate artifact-specific extraction prompt
-    fn build_extraction_prompt(&self, artifact: &Artifact) -> String {
-        let base_instructions = r#"
-You are an expert software analyst tasked with extracting claims from software artifacts.
+    /// Get standardized base instructions for claim extraction (cacheable)
+    fn get_base_extraction_instructions(&self) -> String {
+        r#"You are an expert software analyst tasked with extracting claims from software artifacts.
 
+TASK DEFINITION:
 A CLAIM is any explicit or implicit statement about:
 - What the system does or should do (functional claims)
-- How the system behaves (behavioral claims)
+- How the system behaves (behavioral claims)  
 - System architecture or structure (structural claims)
 - Performance characteristics (performance claims)
 - Security properties (security claims)
 - Requirements or specifications (requirement claims)
 - Testing coverage or validation (testing claims)
 
+EXTRACTION GUIDELINES:
 Extract ALL meaningful claims from the artifact, including:
 - Explicit statements in comments or documentation
 - Implicit claims from function/class names
@@ -88,16 +90,38 @@ Extract ALL meaningful claims from the artifact, including:
 - Requirements implied by test cases
 - Promises made by API signatures
 
+QUALITY CRITERIA:
 For each claim:
 1. State it clearly and specifically
 2. Assign a confidence score (0.0-1.0) for how certain you are this claim is being made
-3. Classify the claim type
+3. Classify the claim type appropriately
 4. Include the source excerpt that supports this claim
 5. Provide brief reasoning for why this is a claim
 
-Respond in JSON format only.
-"#;
+OUTPUT FORMAT:
+Respond in JSON format only using this exact structure:
+{
+  "claims": [
+    {
+      "statement": "Clear description of the claim",
+      "confidence": 0.0-1.0,
+      "claim_type": "functional|behavioral|structural|performance|security|requirement|testing",
+      "source_excerpt": "Specific part of artifact this came from",
+      "reasoning": "Why this constitutes a claim"
+    }
+  ],
+  "confidence": 0.0-1.0,
+  "extraction_metadata": {
+    "artifact_length": "length_value",
+    "extraction_strategy": "strategy_value"
+  }
+}"#.to_string()
+    }
 
+    /// Generate artifact-specific extraction prompt optimized for caching
+    fn build_extraction_prompt(&self, artifact: &Artifact) -> String {
+        let base_instructions = self.get_base_extraction_instructions();
+        
         let artifact_specific = match artifact.artifact_type {
             ArtifactType::Code => self.get_code_extraction_prompt(),
             ArtifactType::Test => self.get_test_extraction_prompt(),
@@ -107,8 +131,9 @@ Respond in JSON format only.
             _ => "Extract any claims found in this artifact.".to_string(),
         };
 
+        // Structure: Base instructions (cacheable) + Artifact-specific instructions (cacheable) + Variable data
         format!(
-            "{}\n\n{}\n\nArtifact Type: {:?}\nLocation: {}\n\nContent:\n```\n{}\n```\n\nExtract claims in this JSON format:\n{{\n  \"claims\": [\n    {{\n      \"statement\": \"Clear description of the claim\",\n      \"confidence\": 0.0-1.0,\n      \"claim_type\": \"functional|behavioral|structural|performance|security|requirement|testing\",\n      \"source_excerpt\": \"Specific part of artifact this came from\",\n      \"reasoning\": \"Why this constitutes a claim\"\n    }}\n  ],\n  \"confidence\": 0.0-1.0,\n  \"extraction_metadata\": {{\n    \"artifact_length\": \"{}\",\n    \"extraction_strategy\": \"{:?}\"\n  }}\n}}",
+            "{}\n\nARTIFACT-SPECIFIC GUIDANCE:\n{}\n\n--- BEGIN ANALYSIS ---\n\nArtifact Type: {:?}\nLocation: {}\n\nContent:\n```\n{}\n```\n\nExtraction Metadata:\n- Artifact Length: {}\n- Strategy: {:?}",
             base_instructions,
             artifact_specific,
             artifact.artifact_type,
@@ -336,33 +361,20 @@ pub struct ClaudeAlignmentChecker {
 
 impl ClaudeAlignmentChecker {
     pub fn new(api_key: String) -> Self {
-        let client = ClaudeClient::new(api_key);
+        let client = ClaudeClient::new(api_key)
+            .with_caching(true); // Enable caching for alignment checking
         let config = RetryConfig::default();
         let query_resolver = QueryResolver::new(client, config);
         
         Self { query_resolver }
     }
 
-    fn build_alignment_prompt(&self, claim: &Claim, evidence_artifact: &Artifact) -> String {
-        format!(
-            r#"
-You are an expert software analyst evaluating how well evidence supports a claim.
+    /// Get standardized base instructions for alignment checking (cacheable)
+    fn get_base_alignment_instructions(&self) -> String {
+        r#"You are an expert software analyst evaluating how well evidence supports a claim.
 
-TASK: Determine if the evidence artifact provides support for the given claim.
-
-CLAIM TO EVALUATE:
-- Statement: "{}"
-- Type: {:?}
-- Source: {}
-- Extracted from: "{}"
-
-EVIDENCE ARTIFACT:
-- Type: {:?}  
-- Location: {}
-- Content:
-```
-{}
-```
+TASK DEFINITION:
+Determine if the evidence artifact provides support for the given claim by analyzing alignment across multiple dimensions.
 
 EVALUATION CRITERIA:
 1. SEMANTIC ALIGNMENT (0.0-1.0): Does the evidence directly address the same concept as the claim?
@@ -379,28 +391,36 @@ SCORING GUIDELINES:
 - 0.1-0.3: Little to no support
 - 0.0: Evidence contradicts the claim
 
-Provide detailed analysis in JSON format:
-
-{{
+OUTPUT FORMAT:
+Provide detailed analysis in JSON format using this exact structure:
+{
   "alignment_score": 0.0-1.0,
   "explanation": "Detailed reasoning for the score",
   "evidence_points": [
-    {{
+    {
       "excerpt": "Specific text from evidence",
       "evidence_type": "supporting|contradicting|neutral|outdated",
       "strength": 0.0-1.0,
       "location": "where in the artifact this was found"
-    }}
+    }
   ],
-  "dimensions": {{
+  "dimensions": {
     "semantic_alignment": 0.0-1.0,
     "functional_alignment": 0.0-1.0,
     "behavioral_alignment": 0.0-1.0,
     "structural_alignment": 0.0-1.0,
     "temporal_alignment": 0.0-1.0
-  }}
-}}
-"#,
+  }
+}"#.to_string()
+    }
+
+    fn build_alignment_prompt(&self, claim: &Claim, evidence_artifact: &Artifact) -> String {
+        let base_instructions = self.get_base_alignment_instructions();
+        
+        // Structure: Base instructions (cacheable) + Variable claim/evidence data
+        format!(
+            "{}\n\n--- BEGIN ALIGNMENT ANALYSIS ---\n\nCLAIM TO EVALUATE:\n- Statement: \"{}\"\n- Type: {:?}\n- Source: {}\n- Extracted from: \"{}\"\n\nEVIDENCE ARTIFACT:\n- Type: {:?}\n- Location: {}\n- Content:\n```\n{}\n```",
+            base_instructions,
             claim.statement,
             claim.claim_type,
             claim.source_excerpt,

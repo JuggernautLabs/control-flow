@@ -62,6 +62,22 @@
             background: #c82333;
         }
         
+        button.auto-refresh-on {
+            background: #28a745;
+        }
+        
+        button.auto-refresh-on:hover {
+            background: #218838;
+        }
+        
+        button.auto-refresh-off {
+            background: #6c757d;
+        }
+        
+        button.auto-refresh-off:hover {
+            background: #5a6268;
+        }
+        
         #graph {
             width: 100%;
             height: 600px;
@@ -108,12 +124,399 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        
+        .config-panel {
+            margin-top: 15px;
+            padding: 20px;
+            background: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .config-panel h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .config-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .config-item label {
+            font-weight: bold;
+            font-size: 14px;
+            color: #555;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .config-item input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            height: 6px;
+            background: #ddd;
+            outline: none;
+            border-radius: 3px;
+        }
+        
+        .config-item input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #007bff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .config-item input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #007bff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .main-content {
+            display: flex;
+            gap: 20px;
+            position: relative;
+        }
+        
+        .graph-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        .side-menu {
+            width: 400px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-height: 600px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        
+        .side-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .side-menu-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+        
+        .close-btn:hover {
+            color: #666;
+            background: #e9ecef;
+        }
+        
+        .side-menu-content {
+            padding: 20px;
+        }
+        
+        .detail-section {
+            margin-bottom: 25px;
+        }
+        
+        .detail-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .detail-section h4 {
+            margin: 0 0 15px 0;
+            color: #555;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        
+        .detail-item {
+            display: flex;
+            margin-bottom: 12px;
+            align-items: flex-start;
+        }
+        
+        .detail-item label {
+            font-weight: bold;
+            min-width: 80px;
+            color: #666;
+            margin-right: 12px;
+        }
+        
+        .detail-item span {
+            flex: 1;
+            word-break: break-word;
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        
+        .metadata-item {
+            display: flex;
+            margin-bottom: 10px;
+            align-items: flex-start;
+        }
+        
+        .metadata-key {
+            font-weight: bold;
+            min-width: 120px;
+            color: #666;
+            margin-right: 10px;
+        }
+        
+        .metadata-value {
+            flex: 1;
+            word-break: break-word;
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        
+        .connection-item {
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .connection-item:hover {
+            background: #e2e6ea;
+        }
+        
+        .connection-type {
+            background: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        .connection-target {
+            font-weight: bold;
+            color: #333;
+            flex: 1;
+        }
+        
+        .connection-label {
+            color: #666;
+            font-style: italic;
+            font-size: 12px;
+        }
+        
+        .navigate-icon {
+            color: #007bff;
+            margin-left: auto;
+            font-size: 14px;
+        }
+        
+        .node.selected {
+            stroke: #ff6b6b !important;
+            stroke-width: 4px !important;
+            filter: drop-shadow(0px 0px 8px rgba(255, 107, 107, 0.6));
+        }
+        
+        .project-controls {
+            background: #e8f4f8;
+            border: 1px solid #bee5eb;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .project-controls h4 {
+            margin: 0 0 10px 0;
+            color: #0c5460;
+            font-size: 16px;
+        }
+        
+        .project-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .project-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .project-selector {
+            flex: 1;
+            max-width: 200px;
+        }
+        
+        .project-name-input {
+            flex: 1;
+            max-width: 200px;
+        }
+        
+        .current-project {
+            font-weight: bold;
+            color: #0c5460;
+            background: #d1ecf1;
+            padding: 5px 10px;
+            border-radius: 3px;
+            border: 1px solid #bee5eb;
+        }
+        
+        .search-controls {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .search-controls h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+            font-size: 16px;
+        }
+        
+        .search-input {
+            width: 100%;
+            max-width: 300px;
+            margin-right: 10px;
+        }
+        
+        .search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background: white;
+            display: none;
+        }
+        
+        .search-result-item {
+            padding: 10px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .search-result-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result-title {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .search-result-id {
+            font-size: 12px;
+            color: #666;
+            font-family: monospace;
+        }
+        
+        .search-result-matches {
+            font-size: 12px;
+            color: #007bff;
+            margin-top: 5px;
+        }
+        
+        .search-highlight {
+            background: #fff3cd;
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Simple Graph Rendering API</h1>
         <p>Clean implementation focusing on basic graph functionality</p>
+        
+        <div class="project-controls">
+            <h4>Project Management</h4>
+            <div class="project-row">
+                <span>Current Project:</span>
+                <span id="currentProjectName" class="current-project">Default Project</span>
+            </div>
+            <div class="project-row">
+                <select id="projectSelector" class="project-selector">
+                    <option value="">Select Project...</option>
+                </select>
+                <button onclick="loadSelectedProject()">Load Project</button>
+                <button onclick="deleteSelectedProject()" class="danger">Delete Project</button>
+            </div>
+            <div class="project-row">
+                <input id="newProjectName" class="project-name-input" placeholder="New project name..." />
+                <button onclick="saveAsNewProject()">Save as New Project</button>
+                <button onclick="saveCurrentProject()">Save Current Project</button>
+            </div>
+            <div class="project-row">
+                <button onclick="exportProject()">Export Project</button>
+                <button onclick="importProject()">Import Project</button>
+                <span style="color: #666; font-size: 12px; margin-left: 10px;">
+                    Export/Import projects as JSON files
+                </span>
+            </div>
+        </div>
+        
+        <div class="search-controls">
+            <h4>Search Nodes</h4>
+            <div class="control-row">
+                <input id="searchInput" class="search-input" placeholder="Search nodes by label, ID, or metadata..." />
+                <button onclick="clearSearch()">Clear</button>
+            </div>
+            <div id="searchResults" class="search-results"></div>
+        </div>
         
         <div class="controls">
             <div class="control-row">
@@ -135,6 +538,7 @@
             
             <div class="control-row">
                 <button onclick="refreshGraph()">Refresh</button>
+                <button onclick="toggleAutoRefresh()" id="autoRefreshBtn" class="auto-refresh-on">Auto-Refresh: ON</button>
                 <button onclick="generateSampleData()">Sample Data</button>
                 <button onclick="clearGraph()" class="danger">Clear All</button>
             </div>
@@ -145,10 +549,96 @@
                 <button onclick="zoomOut()">Zoom Out</button>
                 <button onclick="resetZoom()">Reset Zoom</button>
                 <span id="zoomLevel">1.0x</span>
+                <button onclick="centerFull()">Center & Fit</button>
+            </div>
+            
+            <div class="control-row">
+                <button onclick="toggleConfig()" id="configToggle">Show Physics Config</button>
+            </div>
+            
+            <div id="configPanel" class="config-panel" style="display: none;">
+                <h4>Physics Configuration</h4>
+                <div class="config-grid">
+                    <div class="config-item">
+                        <label for="repulsionSlider">Node Repulsion: <span id="repulsionValue">1000</span></label>
+                        <input type="range" id="repulsionSlider" min="50" max="5000" value="1000" 
+                               oninput="updateRepulsion(this.value)">
+                    </div>
+                    
+                    <div class="config-item">
+                        <label for="linkDistanceSlider">Edge Distance: <span id="linkDistanceValue">39</span></label>
+                        <input type="range" id="linkDistanceSlider" min="20" max="300" value="39" 
+                               oninput="updateLinkDistance(this.value)">
+                    </div>
+                    
+                    <div class="config-item">
+                        <label for="linkStrengthSlider">Edge Tightness: <span id="linkStrengthValue">0.6</span></label>
+                        <input type="range" id="linkStrengthSlider" min="0.1" max="2.0" step="0.1" value="0.6" 
+                               oninput="updateLinkStrength(this.value)">
+                    </div>
+                    
+                    <div class="config-item">
+                        <label for="centeringSlider">Centering Force: <span id="centeringValue">0</span></label>
+                        <input type="range" id="centeringSlider" min="0" max="1" step="0.05" value="0" 
+                               oninput="updateCentering(this.value)">
+                    </div>
+                    
+                    <div class="config-item">
+                        <label for="collisionSlider">Node Collision: <span id="collisionValue">25</span></label>
+                        <input type="range" id="collisionSlider" min="10" max="50" value="25" 
+                               oninput="updateCollision(this.value)">
+                    </div>
+                    
+                    <div class="config-item">
+                        <button onclick="resetPhysics()" style="width: 100%;">Reset to Defaults</button>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <svg id="graph"></svg>
+        <div class="main-content">
+            <div class="graph-container">
+                <svg id="graph"></svg>
+            </div>
+            
+            <div id="sideMenu" class="side-menu" style="display: none;">
+                <div class="side-menu-header">
+                    <h3>Node Details</h3>
+                    <button onclick="closeSideMenu()" class="close-btn">&times;</button>
+                </div>
+                <div class="side-menu-content">
+                    <div class="detail-section">
+                        <h4>Basic Information</h4>
+                        <div class="detail-item">
+                            <label>ID:</label>
+                            <span id="nodeDetailId">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Label:</label>
+                            <span id="nodeDetailLabel">-</span>
+                        </div>
+                        <div class="detail-item" id="nodeColorSection" style="display: none;">
+                            <label>Color:</label>
+                            <span id="nodeDetailColor">-</span>
+                        </div>
+                        <div class="detail-item" id="nodeSizeSection" style="display: none;">
+                            <label>Size:</label>
+                            <span id="nodeDetailSize">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section" id="metadataSection" style="display: none;">
+                        <h4>Metadata</h4>
+                        <div id="metadataContent"></div>
+                    </div>
+                    
+                    <div class="detail-section" id="connectionsSection" style="display: none;">
+                        <h4>Connections</h4>
+                        <div id="connectionsContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <div id="status" class="status" style="display: none;"></div>
     </div>
@@ -167,6 +657,15 @@
                 this.nodes = [];
                 this.links = [];
                 this.currentZoom = 1.0;
+                
+                // Physics configuration
+                this.config = {
+                    repulsion: 1000,
+                    linkDistance: 39,
+                    linkStrength: 0.6,
+                    centering: 0,
+                    collision: 25
+                };
                 
                 this.initZoom();
                 this.initSimulation();
@@ -188,11 +687,18 @@
                 this.simulation = d3.forceSimulation()
                     .force('link', d3.forceLink()
                         .id(d => d.id)
-                        .distance(100)
-                        .strength(0.5))
-                    .force('charge', d3.forceManyBody().strength(-300))
+                        .distance(this.config.linkDistance)
+                        .strength(this.config.linkStrength))
+                    .force('charge', d3.forceManyBody().strength(-this.config.repulsion))
                     .force('center', d3.forceCenter(this.width / 2, this.height / 2))
-                    .force('collision', d3.forceCollide().radius(25));
+                    .force('collision', d3.forceCollide().radius(this.config.collision))
+                    .force('x', d3.forceX(this.width / 2).strength(this.config.centering))
+                    .force('y', d3.forceY(this.height / 2).strength(this.config.centering))
+                    .alphaDecay(0.02)
+                    .velocityDecay(0.8);
+                
+                // Update UI sliders to match the actual config values
+                this.updateConfigUI();
             }
             
             updateZoomDisplay() {
@@ -210,6 +716,44 @@
                 console.log('Setting data:', this.nodes.length, 'nodes,', this.links.length, 'links');
                 
                 this.render();
+            }
+            
+            smartUpdate(newNodes, newLinks) {
+                console.log('Smart update:', newNodes.length, 'nodes,', newLinks.length, 'links');
+                
+                // Create maps for quick lookup of existing data
+                const currentNodeMap = new Map(this.nodes.map(n => [n.id, n]));
+                const currentLinkMap = new Map(this.links.map(l => [l.id, l]));
+                
+                // Preserve positions of existing nodes and add new ones
+                this.nodes = newNodes.map(newNode => {
+                    const existing = currentNodeMap.get(newNode.id);
+                    if (existing) {
+                        // Preserve position and velocity for existing nodes
+                        return {
+                            ...newNode,
+                            x: existing.x,
+                            y: existing.y,
+                            vx: existing.vx || 0,
+                            vy: existing.vy || 0,
+                            fx: existing.fx, // Preserve fixed positions from dragging
+                            fy: existing.fy
+                        };
+                    } else {
+                        // New node - start near center with slight randomization
+                        return {
+                            ...newNode,
+                            x: this.width / 2 + (Math.random() - 0.5) * 100,
+                            y: this.height / 2 + (Math.random() - 0.5) * 100
+                        };
+                    }
+                });
+                
+                // Update links (they don't have position state to preserve)
+                this.links = newLinks.map(l => ({...l}));
+                
+                // Smart render without full re-initialization
+                this.smartRender();
             }
             
             render() {
@@ -234,6 +778,8 @@
                     .attr('class', 'node')
                     .attr('r', d => d.size || 20)
                     .style('fill', d => d.color || '#69b3a2')
+                    .style('cursor', 'pointer')
+                    .on('click', (event, d) => this.selectNode(event, d))
                     .call(d3.drag()
                         .on('start', (event, d) => this.dragstarted(event, d))
                         .on('drag', (event, d) => this.dragged(event, d))
@@ -276,6 +822,144 @@
                 this.simulation.alpha(1).restart();
             }
             
+            smartRender() {
+                // Update simulation data first
+                this.simulation.nodes(this.nodes);
+                this.simulation.force('link').links(this.links);
+                
+                // Get or create groups
+                let linkGroup = this.container.select('.links-group');
+                if (linkGroup.empty()) {
+                    linkGroup = this.container.append('g').attr('class', 'links-group');
+                }
+                
+                let nodeGroup = this.container.select('.nodes-group');
+                if (nodeGroup.empty()) {
+                    nodeGroup = this.container.append('g').attr('class', 'nodes-group');
+                }
+                
+                let labelGroup = this.container.select('.labels-group');
+                if (labelGroup.empty()) {
+                    labelGroup = this.container.append('g').attr('class', 'labels-group');
+                }
+                
+                // Update links using enter/update/exit pattern
+                const linkSelection = linkGroup
+                    .selectAll('line')
+                    .data(this.links, d => d.id);
+                
+                // Remove deleted links
+                linkSelection.exit()
+                    .transition()
+                    .duration(300)
+                    .style('opacity', 0)
+                    .remove();
+                
+                // Add new links
+                const linkEnter = linkSelection.enter()
+                    .append('line')
+                    .attr('class', 'link')
+                    .style('opacity', 0);
+                
+                // Update all links (existing + new)
+                linkSelection.merge(linkEnter)
+                    .transition()
+                    .duration(300)
+                    .style('opacity', 1)
+                    .style('stroke', d => d.color || '#999');
+                
+                // Update nodes using enter/update/exit pattern
+                const nodeSelection = nodeGroup
+                    .selectAll('circle')
+                    .data(this.nodes, d => d.id);
+                
+                // Remove deleted nodes
+                nodeSelection.exit()
+                    .transition()
+                    .duration(300)
+                    .style('opacity', 0)
+                    .attr('r', 0)
+                    .remove();
+                
+                // Add new nodes
+                const nodeEnter = nodeSelection.enter()
+                    .append('circle')
+                    .attr('class', 'node')
+                    .attr('r', 0)
+                    .style('opacity', 0)
+                    .style('cursor', 'pointer')
+                    .on('click', (event, d) => this.selectNode(event, d))
+                    .call(d3.drag()
+                        .on('start', (event, d) => this.dragstarted(event, d))
+                        .on('drag', (event, d) => this.dragged(event, d))
+                        .on('end', (event, d) => this.dragended(event, d)));
+                
+                // Update all nodes (existing + new)
+                nodeSelection.merge(nodeEnter)
+                    .transition()
+                    .duration(300)
+                    .style('opacity', 1)
+                    .attr('r', d => d.size || 20)
+                    .style('fill', d => d.color || '#69b3a2')
+                    .on('end', () => {
+                        // Restore selection highlighting after transition
+                        this.updateNodeSelection();
+                    });
+                
+                // Update labels using enter/update/exit pattern
+                const labelSelection = labelGroup
+                    .selectAll('text')
+                    .data(this.nodes, d => d.id);
+                
+                // Remove deleted labels
+                labelSelection.exit()
+                    .transition()
+                    .duration(300)
+                    .style('opacity', 0)
+                    .remove();
+                
+                // Add new labels
+                const labelEnter = labelSelection.enter()
+                    .append('text')
+                    .attr('class', 'node-label')
+                    .style('opacity', 0)
+                    .text(d => d.label);
+                
+                // Update all labels (existing + new)
+                labelSelection.merge(labelEnter)
+                    .transition()
+                    .duration(300)
+                    .style('opacity', 1)
+                    .text(d => d.label);
+                
+                // Set up tick handler for the updated elements
+                const allLinks = linkGroup.selectAll('line');
+                const allNodes = nodeGroup.selectAll('circle');
+                const allLabels = labelGroup.selectAll('text');
+                
+                this.simulation.on('tick', () => {
+                    // Update link positions
+                    allLinks
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+                    
+                    // Update node positions
+                    allNodes
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+                    
+                    // Update label positions
+                    allLabels
+                        .attr('x', d => d.x)
+                        .attr('y', d => d.y + 4);
+                });
+                
+                // Gently restart simulation for new nodes only
+                this.simulation.alpha(0.1).restart();
+            }
+            
             dragstarted(event, d) {
                 if (!event.active) this.simulation.alphaTarget(0.3).restart();
                 d.fx = d.x;
@@ -291,6 +975,26 @@
                 if (!event.active) this.simulation.alphaTarget(0);
                 d.fx = null;
                 d.fy = null;
+            }
+            
+            selectNode(event, d) {
+                // Prevent event bubbling
+                event.stopPropagation();
+                
+                // Update global selection tracking
+                selectedNodeId = d.id;
+                
+                // Update visual selection
+                this.updateNodeSelection();
+                
+                // Show side menu with node details
+                showNodeDetails(d);
+            }
+            
+            updateNodeSelection() {
+                // Update visual selection for all nodes
+                this.container.selectAll('.node')
+                    .classed('selected', node => node.id === selectedNodeId);
             }
             
             // Zoom control methods
@@ -312,11 +1016,147 @@
                     d3.zoomIdentity
                 );
             }
+            
+            centerAndFit() {
+                if (this.nodes.length === 0) return;
+                
+                // Calculate bounds of all nodes
+                const bounds = this.nodes.reduce((acc, node) => {
+                    if (node.x !== undefined && node.y !== undefined) {
+                        acc.minX = Math.min(acc.minX, node.x);
+                        acc.maxX = Math.max(acc.maxX, node.x);
+                        acc.minY = Math.min(acc.minY, node.y);
+                        acc.maxY = Math.max(acc.maxY, node.y);
+                    }
+                    return acc;
+                }, {
+                    minX: Infinity, maxX: -Infinity,
+                    minY: Infinity, maxY: -Infinity
+                });
+                
+                if (!isFinite(bounds.minX)) return;
+                
+                // Add padding
+                const padding = 50;
+                const graphWidth = bounds.maxX - bounds.minX + padding * 2;
+                const graphHeight = bounds.maxY - bounds.minY + padding * 2;
+                
+                // Calculate scale to fit
+                const scale = Math.min(
+                    this.width / graphWidth,
+                    this.height / graphHeight,
+                    10 // Max zoom
+                );
+                
+                // Calculate translation to center
+                const centerX = (bounds.minX + bounds.maxX) / 2;
+                const centerY = (bounds.minY + bounds.maxY) / 2;
+                const translateX = this.width / 2 - centerX * scale;
+                const translateY = this.height / 2 - centerY * scale;
+                
+                // Apply transform
+                this.svg.transition().duration(750).call(
+                    this.zoom.transform,
+                    d3.zoomIdentity.translate(translateX, translateY).scale(scale)
+                );
+            }
+            
+            // Physics configuration methods
+            updateRepulsion(value) {
+                this.config.repulsion = parseFloat(value);
+                this.simulation.force('charge').strength(-this.config.repulsion);
+                this.simulation.alpha(0.3).restart();
+            }
+            
+            updateLinkDistance(value) {
+                this.config.linkDistance = parseFloat(value);
+                this.simulation.force('link').distance(this.config.linkDistance);
+                this.simulation.alpha(0.3).restart();
+            }
+            
+            updateLinkStrength(value) {
+                this.config.linkStrength = parseFloat(value);
+                this.simulation.force('link').strength(this.config.linkStrength);
+                this.simulation.alpha(0.3).restart();
+            }
+            
+            updateCentering(value) {
+                this.config.centering = parseFloat(value);
+                this.simulation.force('x').strength(this.config.centering);
+                this.simulation.force('y').strength(this.config.centering);
+                this.simulation.alpha(0.3).restart();
+            }
+            
+            updateCollision(value) {
+                this.config.collision = parseFloat(value);
+                this.simulation.force('collision').radius(this.config.collision);
+                this.simulation.alpha(0.3).restart();
+            }
+            
+            updateConfigUI() {
+                // Update UI sliders to match current config
+                const repulsionSlider = document.getElementById('repulsionSlider');
+                const linkDistanceSlider = document.getElementById('linkDistanceSlider');
+                const linkStrengthSlider = document.getElementById('linkStrengthSlider');
+                const centeringSlider = document.getElementById('centeringSlider');
+                const collisionSlider = document.getElementById('collisionSlider');
+                
+                if (repulsionSlider) {
+                    repulsionSlider.value = this.config.repulsion;
+                    document.getElementById('repulsionValue').textContent = this.config.repulsion;
+                }
+                if (linkDistanceSlider) {
+                    linkDistanceSlider.value = this.config.linkDistance;
+                    document.getElementById('linkDistanceValue').textContent = this.config.linkDistance;
+                }
+                if (linkStrengthSlider) {
+                    linkStrengthSlider.value = this.config.linkStrength;
+                    document.getElementById('linkStrengthValue').textContent = this.config.linkStrength;
+                }
+                if (centeringSlider) {
+                    centeringSlider.value = this.config.centering;
+                    document.getElementById('centeringValue').textContent = this.config.centering;
+                }
+                if (collisionSlider) {
+                    collisionSlider.value = this.config.collision;
+                    document.getElementById('collisionValue').textContent = this.config.collision;
+                }
+            }
+            
+            resetPhysicsConfig() {
+                this.config = {
+                    repulsion: 1000,
+                    linkDistance: 39,
+                    linkStrength: 0.6,
+                    centering: 0,
+                    collision: 25
+                };
+                
+                // Update all forces
+                this.simulation.force('charge').strength(-this.config.repulsion);
+                this.simulation.force('link')
+                    .distance(this.config.linkDistance)
+                    .strength(this.config.linkStrength);
+                this.simulation.force('x').strength(this.config.centering);
+                this.simulation.force('y').strength(this.config.centering);
+                this.simulation.force('collision').radius(this.config.collision);
+                
+                this.simulation.alpha(0.5).restart();
+                
+                // Update UI using the new method
+                this.updateConfigUI();
+            }
         }
         
         // Global state
         let renderer = new SimpleGraphRenderer('#graph');
         let graphData = { nodes: {}, edges: {} };
+        let autoRefreshEnabled = true;
+        let autoRefreshInterval = null;
+        let refreshRate = 2000; // 2 seconds
+        let selectedNodeId = null; // Track currently selected node
+        let currentProjectName = 'Default Project'; // Current project name
+        let savedProjects = {}; // Stored projects in localStorage
         
         // API functions
         async function apiCall(url, options = {}) {
@@ -342,23 +1182,108 @@
             }
         }
         
-        async function refreshGraph() {
+        async function refreshGraph(showMessage = true) {
             try {
-                const data = await apiCall('/api/graph');
-                graphData = data;
-                updateGraph();
-                showStatus('Graph refreshed successfully', 'success');
+                const newData = await apiCall('/api/graph');
+                
+                // Check if this is the initial load (no existing data)
+                const isInitialLoad = !graphData.nodes && !graphData.edges;
+                
+                if (isInitialLoad) {
+                    // First load - use full render
+                    graphData = newData;
+                    const nodes = Object.values(graphData.nodes || {});
+                    const links = Object.values(graphData.edges || {});
+                    renderer.setData(nodes, links);
+                    updateDropdowns();
+                    
+                    if (showMessage) {
+                        showStatus(`Loaded: ${nodes.length} nodes, ${links.length} edges`, 'success');
+                    }
+                } else {
+                    // Subsequent loads - use smart update
+                    const changes = smartUpdateGraph(newData);
+                    
+                    if (showMessage && (changes.nodesAdded > 0 || changes.edgesAdded > 0 || changes.nodesRemoved > 0 || changes.edgesRemoved > 0)) {
+                        showStatus(`Updated: +${changes.nodesAdded} nodes, +${changes.edgesAdded} edges, -${changes.nodesRemoved} nodes, -${changes.edgesRemoved} edges`, 'success');
+                    } else if (showMessage) {
+                        showStatus('Graph is up to date', 'success');
+                    }
+                }
             } catch (error) {
                 console.error('Failed to refresh graph:', error);
+                if (showMessage) {
+                    showStatus(`Failed to refresh: ${error.message}`, 'error');
+                }
             }
         }
         
-        function updateGraph() {
+        function smartUpdateGraph(newData) {
+            const changes = {
+                nodesAdded: 0,
+                nodesRemoved: 0,
+                edgesAdded: 0,
+                edgesRemoved: 0
+            };
+            
+            // Handle nodes
+            const currentNodeIds = new Set(Object.keys(graphData.nodes || {}));
+            const newNodeIds = new Set(Object.keys(newData.nodes || {}));
+            
+            // Add new nodes
+            for (const nodeId of newNodeIds) {
+                if (!currentNodeIds.has(nodeId)) {
+                    graphData.nodes = graphData.nodes || {};
+                    graphData.nodes[nodeId] = newData.nodes[nodeId];
+                    changes.nodesAdded++;
+                }
+            }
+            
+            // Remove deleted nodes
+            for (const nodeId of currentNodeIds) {
+                if (!newNodeIds.has(nodeId)) {
+                    delete graphData.nodes[nodeId];
+                    changes.nodesRemoved++;
+                }
+            }
+            
+            // Handle edges
+            const currentEdgeIds = new Set(Object.keys(graphData.edges || {}));
+            const newEdgeIds = new Set(Object.keys(newData.edges || {}));
+            
+            // Add new edges
+            for (const edgeId of newEdgeIds) {
+                if (!currentEdgeIds.has(edgeId)) {
+                    graphData.edges = graphData.edges || {};
+                    graphData.edges[edgeId] = newData.edges[edgeId];
+                    changes.edgesAdded++;
+                }
+            }
+            
+            // Remove deleted edges
+            for (const edgeId of currentEdgeIds) {
+                if (!newEdgeIds.has(edgeId)) {
+                    delete graphData.edges[edgeId];
+                    changes.edgesRemoved++;
+                }
+            }
+            
+            // Only update renderer if there were changes
+            if (changes.nodesAdded > 0 || changes.nodesRemoved > 0 || changes.edgesAdded > 0 || changes.edgesRemoved > 0) {
+                smartUpdateRenderer();
+            }
+            
+            // Always update dropdowns in case of changes
+            updateDropdowns();
+            
+            return changes;
+        }
+        
+        function smartUpdateRenderer() {
             const nodes = Object.values(graphData.nodes || {});
             const links = Object.values(graphData.edges || {});
             
-            renderer.setData(nodes, links);
-            updateDropdowns();
+            renderer.smartUpdate(nodes, links);
         }
         
         function updateDropdowns() {
@@ -403,8 +1328,10 @@
                     body: JSON.stringify(nodeData)
                 });
                 
+                // Add to local data and smart update
                 graphData.nodes[data.id] = data;
-                updateGraph();
+                smartUpdateRenderer();
+                updateDropdowns();
                 
                 // Clear inputs
                 document.getElementById('nodeLabel').value = '';
@@ -438,8 +1365,10 @@
                     body: JSON.stringify(edgeData)
                 });
                 
+                // Add to local data and smart update
                 graphData.edges[data.id] = data;
-                updateGraph();
+                smartUpdateRenderer();
+                updateDropdowns();
                 
                 // Clear inputs
                 document.getElementById('sourceNode').value = '';
@@ -458,7 +1387,8 @@
             try {
                 await apiCall('/api/clear', { method: 'POST' });
                 graphData = { nodes: {}, edges: {} };
-                updateGraph();
+                smartUpdateRenderer();
+                updateDropdowns();
                 showStatus('Graph cleared successfully', 'success');
             } catch (error) {
                 console.error('Failed to clear graph:', error);
@@ -501,7 +1431,9 @@
                     graphData.edges[data.id] = data;
                 }
                 
-                updateGraph();
+                // Use smart update for the complete sample data
+                smartUpdateRenderer();
+                updateDropdowns();
                 showStatus('Sample data generated successfully', 'success');
             } catch (error) {
                 console.error('Failed to generate sample data:', error);
@@ -532,9 +1464,740 @@
             renderer.resetZoom();
         }
         
+        function centerFull() {
+            renderer.centerAndFit();
+        }
+        
+        // Configuration panel controls
+        function toggleConfig() {
+            const panel = document.getElementById('configPanel');
+            const button = document.getElementById('configToggle');
+            
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                button.textContent = 'Hide Physics Config';
+            } else {
+                panel.style.display = 'none';
+                button.textContent = 'Show Physics Config';
+            }
+        }
+        
+        // Physics parameter controls
+        function updateRepulsion(value) {
+            renderer.updateRepulsion(value);
+            document.getElementById('repulsionValue').textContent = value;
+        }
+        
+        function updateLinkDistance(value) {
+            renderer.updateLinkDistance(value);
+            document.getElementById('linkDistanceValue').textContent = value;
+        }
+        
+        function updateLinkStrength(value) {
+            renderer.updateLinkStrength(value);
+            document.getElementById('linkStrengthValue').textContent = value;
+        }
+        
+        function updateCentering(value) {
+            renderer.updateCentering(value);
+            document.getElementById('centeringValue').textContent = value;
+        }
+        
+        function updateCollision(value) {
+            renderer.updateCollision(value);
+            document.getElementById('collisionValue').textContent = value;
+        }
+        
+        function resetPhysics() {
+            renderer.resetPhysicsConfig();
+        }
+        
+        // Side menu functions
+        function showNodeDetails(nodeData) {
+            // Update basic information
+            document.getElementById('nodeDetailId').textContent = nodeData.id || '-';
+            document.getElementById('nodeDetailLabel').textContent = nodeData.label || '-';
+            
+            // Handle optional fields
+            const colorSection = document.getElementById('nodeColorSection');
+            const sizeSection = document.getElementById('nodeSizeSection');
+            
+            if (nodeData.color) {
+                document.getElementById('nodeDetailColor').textContent = nodeData.color;
+                document.getElementById('nodeDetailColor').style.backgroundColor = nodeData.color;
+                colorSection.style.display = 'flex';
+            } else {
+                colorSection.style.display = 'none';
+            }
+            
+            if (nodeData.size) {
+                document.getElementById('nodeDetailSize').textContent = nodeData.size + 'px';
+                sizeSection.style.display = 'flex';
+            } else {
+                sizeSection.style.display = 'none';
+            }
+            
+            // Handle metadata
+            const metadataSection = document.getElementById('metadataSection');
+            const metadataContent = document.getElementById('metadataContent');
+            
+            if (nodeData.metadata && Object.keys(nodeData.metadata).length > 0) {
+                metadataContent.innerHTML = '';
+                for (const [key, value] of Object.entries(nodeData.metadata)) {
+                    const metadataItem = document.createElement('div');
+                    metadataItem.className = 'metadata-item';
+                    
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'metadata-key';
+                    keySpan.textContent = key + ':';
+                    
+                    const valueSpan = document.createElement('span');
+                    valueSpan.className = 'metadata-value';
+                    valueSpan.textContent = value;
+                    
+                    metadataItem.appendChild(keySpan);
+                    metadataItem.appendChild(valueSpan);
+                    metadataContent.appendChild(metadataItem);
+                }
+                metadataSection.style.display = 'block';
+            } else {
+                metadataSection.style.display = 'none';
+            }
+            
+            // Handle connections
+            const connectionsSection = document.getElementById('connectionsSection');
+            const connectionsContent = document.getElementById('connectionsContent');
+            const connections = getNodeConnections(nodeData.id);
+            
+            if (connections.length > 0) {
+                connectionsContent.innerHTML = '';
+                connections.forEach(connection => {
+                    const connectionItem = document.createElement('div');
+                    connectionItem.className = 'connection-item';
+                    connectionItem.title = `Click to navigate to ${connection.target}`;
+                    
+                    // Add click handler for navigation
+                    connectionItem.addEventListener('click', () => {
+                        navigateToNode(connection.targetId);
+                    });
+                    
+                    const typeSpan = document.createElement('span');
+                    typeSpan.className = 'connection-type';
+                    typeSpan.textContent = connection.type;
+                    
+                    const targetSpan = document.createElement('span');
+                    targetSpan.className = 'connection-target';
+                    targetSpan.textContent = connection.target;
+                    
+                    connectionItem.appendChild(typeSpan);
+                    connectionItem.appendChild(targetSpan);
+                    
+                    if (connection.label) {
+                        const labelSpan = document.createElement('span');
+                        labelSpan.className = 'connection-label';
+                        labelSpan.textContent = `(${connection.label})`;
+                        connectionItem.appendChild(labelSpan);
+                    }
+                    
+                    // Add navigation icon
+                    const navIcon = document.createElement('span');
+                    navIcon.className = 'navigate-icon';
+                    navIcon.textContent = '→';
+                    connectionItem.appendChild(navIcon);
+                    
+                    connectionsContent.appendChild(connectionItem);
+                });
+                connectionsSection.style.display = 'block';
+            } else {
+                connectionsSection.style.display = 'none';
+            }
+            
+            // Show the side menu
+            document.getElementById('sideMenu').style.display = 'block';
+        }
+        
+        function closeSideMenu() {
+            document.getElementById('sideMenu').style.display = 'none';
+            
+            // Clear global selection tracking
+            selectedNodeId = null;
+            
+            // Remove selection highlighting
+            renderer.updateNodeSelection();
+        }
+        
+        function navigateToNode(nodeId) {
+            // Find the node data
+            const nodeData = graphData.nodes[nodeId];
+            
+            if (!nodeData) {
+                showStatus(`Node ${nodeId} not found`, 'error');
+                return;
+            }
+            
+            // Update global selection tracking
+            selectedNodeId = nodeId;
+            
+            // Update visual selection in the graph
+            renderer.updateNodeSelection();
+            
+            // Update the side menu with the new node's details
+            showNodeDetails(nodeData);
+            
+            // Optional: center the view on the selected node
+            centerOnNode(nodeId);
+            
+            showStatus(`Navigated to: ${nodeData.label}`, 'success');
+        }
+        
+        function centerOnNode(nodeId) {
+            // Find the node in the simulation
+            const nodes = renderer.simulation.nodes();
+            const node = nodes.find(n => n.id === nodeId);
+            
+            if (!node || node.x === undefined || node.y === undefined) {
+                return; // Node not found or position not set
+            }
+            
+            // Calculate transform to center the node
+            const scale = renderer.currentZoom || 1;
+            const translateX = renderer.width / 2 - node.x * scale;
+            const translateY = renderer.height / 2 - node.y * scale;
+            
+            // Apply smooth transition to center the node
+            renderer.svg.transition().duration(750).call(
+                renderer.zoom.transform,
+                d3.zoomIdentity.translate(translateX, translateY).scale(scale)
+            );
+        }
+        
+        function getNodeConnections(nodeId) {
+            const connections = [];
+            const edges = Object.values(graphData.edges || {});
+            const nodes = graphData.nodes || {};
+            
+            edges.forEach(edge => {
+                if (edge.source === nodeId) {
+                    const targetNode = nodes[edge.target];
+                    connections.push({
+                        id: edge.id,
+                        type: 'outgoing',
+                        target: targetNode ? targetNode.label : edge.target,
+                        targetId: edge.target,
+                        label: edge.label,
+                        weight: edge.weight
+                    });
+                } else if (edge.target === nodeId) {
+                    const sourceNode = nodes[edge.source];
+                    connections.push({
+                        id: edge.id,
+                        type: 'incoming',
+                        target: sourceNode ? sourceNode.label : edge.source,
+                        targetId: edge.source,
+                        label: edge.label,
+                        weight: edge.weight
+                    });
+                }
+            });
+            
+            return connections;
+        }
+        
+        // Auto-refresh functionality
+        function startAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            autoRefreshInterval = setInterval(() => {
+                refreshGraph(false); // Don't show status message for auto-refresh
+            }, refreshRate);
+            
+            autoRefreshEnabled = true;
+            updateAutoRefreshButton();
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            
+            autoRefreshEnabled = false;
+            updateAutoRefreshButton();
+        }
+        
+        function toggleAutoRefresh() {
+            if (autoRefreshEnabled) {
+                stopAutoRefresh();
+                showStatus('Auto-refresh disabled', 'success');
+            } else {
+                startAutoRefresh();
+                showStatus('Auto-refresh enabled (every 2 seconds)', 'success');
+            }
+        }
+        
+        function updateAutoRefreshButton() {
+            const button = document.getElementById('autoRefreshBtn');
+            if (autoRefreshEnabled) {
+                button.textContent = 'Auto-Refresh: ON';
+                button.className = 'auto-refresh-on';
+            } else {
+                button.textContent = 'Auto-Refresh: OFF';
+                button.className = 'auto-refresh-off';
+            }
+        }
+        
+        // Search functionality
+        function searchNodes(query) {
+            if (!query || query.length < 2) {
+                hideSearchResults();
+                return;
+            }
+            
+            const nodes = Object.values(graphData.nodes || {});
+            const results = [];
+            const queryLower = query.toLowerCase();
+            
+            nodes.forEach(node => {
+                const matches = [];
+                let relevanceScore = 0;
+                
+                // Search in node ID
+                if (node.id.toLowerCase().includes(queryLower)) {
+                    matches.push(`ID: ${node.id}`);
+                    relevanceScore += node.id.toLowerCase() === queryLower ? 100 : 50;
+                }
+                
+                // Search in node label
+                if (node.label.toLowerCase().includes(queryLower)) {
+                    matches.push(`Label: ${node.label}`);
+                    relevanceScore += node.label.toLowerCase() === queryLower ? 100 : 50;
+                }
+                
+                // Search in color
+                if (node.color && node.color.toLowerCase().includes(queryLower)) {
+                    matches.push(`Color: ${node.color}`);
+                    relevanceScore += 20;
+                }
+                
+                // Search in size
+                if (node.size && node.size.toString().includes(query)) {
+                    matches.push(`Size: ${node.size}`);
+                    relevanceScore += 10;
+                }
+                
+                // Search in metadata
+                if (node.metadata) {
+                    Object.entries(node.metadata).forEach(([key, value]) => {
+                        if (key.toLowerCase().includes(queryLower) || value.toLowerCase().includes(queryLower)) {
+                            matches.push(`${key}: ${value}`);
+                            relevanceScore += key.toLowerCase() === queryLower ? 30 : 20;
+                        }
+                    });
+                }
+                
+                if (matches.length > 0) {
+                    results.push({
+                        node,
+                        matches,
+                        relevanceScore
+                    });
+                }
+            });
+            
+            // Sort by relevance score (highest first)
+            results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+            
+            displaySearchResults(results, queryLower);
+        }
+        
+        function displaySearchResults(results, query) {
+            const resultsContainer = document.getElementById('searchResults');
+            
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<div class="search-result-item">No nodes found</div>';
+                resultsContainer.style.display = 'block';
+                return;
+            }
+            
+            resultsContainer.innerHTML = '';
+            
+            results.slice(0, 10).forEach(result => { // Limit to top 10 results
+                const resultElement = document.createElement('div');
+                resultElement.className = 'search-result-item';
+                resultElement.onclick = () => selectSearchResult(result.node.id);
+                
+                const titleElement = document.createElement('div');
+                titleElement.className = 'search-result-title';
+                titleElement.textContent = result.node.label;
+                
+                const idElement = document.createElement('div');
+                idElement.className = 'search-result-id';
+                idElement.textContent = `ID: ${result.node.id}`;
+                
+                const matchesElement = document.createElement('div');
+                matchesElement.className = 'search-result-matches';
+                matchesElement.innerHTML = 'Matches: ' + result.matches
+                    .map(match => highlightMatch(match, query))
+                    .join(', ');
+                
+                resultElement.appendChild(titleElement);
+                resultElement.appendChild(idElement);
+                resultElement.appendChild(matchesElement);
+                
+                resultsContainer.appendChild(resultElement);
+            });
+            
+            if (results.length > 10) {
+                const moreElement = document.createElement('div');
+                moreElement.className = 'search-result-item';
+                moreElement.style.fontStyle = 'italic';
+                moreElement.style.color = '#666';
+                moreElement.textContent = `... and ${results.length - 10} more results`;
+                resultsContainer.appendChild(moreElement);
+            }
+            
+            resultsContainer.style.display = 'block';
+        }
+        
+        function highlightMatch(text, query) {
+            const regex = new RegExp(`(${escapeRegex(query)})`, 'gi');
+            return text.replace(regex, '<span class="search-highlight">$1</span>');
+        }
+        
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+        function selectSearchResult(nodeId) {
+            hideSearchResults();
+            navigateToNode(nodeId);
+            
+            // Clear search input
+            document.getElementById('searchInput').value = '';
+        }
+        
+        function hideSearchResults() {
+            document.getElementById('searchResults').style.display = 'none';
+        }
+        
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            hideSearchResults();
+        }
+        
+        function setupSearch() {
+            const searchInput = document.getElementById('searchInput');
+            let searchTimeout;
+            
+            searchInput.addEventListener('input', (event) => {
+                clearTimeout(searchTimeout);
+                const query = event.target.value.trim();
+                
+                if (query.length === 0) {
+                    hideSearchResults();
+                    return;
+                }
+                
+                // Debounce search to avoid excessive processing
+                searchTimeout = setTimeout(() => {
+                    searchNodes(query);
+                }, 300);
+            });
+            
+            // Hide results when clicking outside
+            document.addEventListener('click', (event) => {
+                if (!event.target.closest('.search-controls')) {
+                    hideSearchResults();
+                }
+            });
+            
+            // Handle keyboard navigation
+            searchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    clearSearch();
+                }
+            });
+        }
+        
+        // Project Management Functions
+        async function loadSavedProjects() {
+            try {
+                const projects = await apiCall('/api/projects');
+                savedProjects = {};
+                projects.forEach(projectName => {
+                    savedProjects[projectName] = { name: projectName };
+                });
+                updateProjectSelector();
+            } catch (error) {
+                console.error('Failed to load saved projects:', error);
+                savedProjects = {};
+                showStatus('Failed to load projects from server', 'error');
+            }
+        }
+        
+        function updateProjectSelector() {
+            const selector = document.getElementById('projectSelector');
+            selector.innerHTML = '<option value="">Select Project...</option>';
+            
+            Object.keys(savedProjects).forEach(projectName => {
+                const option = document.createElement('option');
+                option.value = projectName;
+                option.textContent = projectName;
+                selector.appendChild(option);
+            });
+        }
+        
+        function updateCurrentProjectDisplay() {
+            document.getElementById('currentProjectName').textContent = currentProjectName;
+        }
+        
+        function getCurrentProjectData() {
+            return {
+                name: currentProjectName,
+                nodes: { ...graphData.nodes },
+                edges: { ...graphData.edges },
+                config: { ...renderer.config },
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        async function saveAsNewProject() {
+            const projectName = document.getElementById('newProjectName').value.trim();
+            
+            if (!projectName) {
+                showStatus('Please enter a project name', 'error');
+                return;
+            }
+            
+            if (savedProjects[projectName]) {
+                if (!confirm(`Project "${projectName}" already exists. Overwrite it?`)) {
+                    return;
+                }
+            }
+            
+            try {
+                // Save project to backend
+                const projectData = {
+                    name: projectName,
+                    nodes: graphData.nodes,
+                    edges: graphData.edges,
+                    config: renderer.config
+                };
+                
+                await apiCall('/api/projects', {
+                    method: 'POST',
+                    body: JSON.stringify(projectData)
+                });
+                
+                // Update local state
+                savedProjects[projectName] = { name: projectName };
+                currentProjectName = projectName;
+                updateCurrentProjectDisplay();
+                updateProjectSelector();
+                
+                // Clear input
+                document.getElementById('newProjectName').value = '';
+                
+                showStatus(`Project "${projectName}" saved successfully`, 'success');
+            } catch (error) {
+                console.error('Failed to save project:', error);
+                showStatus(`Failed to save project: ${error.message}`, 'error');
+            }
+        }
+        
+        async function saveCurrentProject() {
+            if (currentProjectName === 'Default Project') {
+                showStatus('Please use "Save as New Project" to name your project first', 'error');
+                return;
+            }
+            
+            try {
+                // Save project to backend
+                const projectData = {
+                    name: currentProjectName,
+                    nodes: graphData.nodes,
+                    edges: graphData.edges,
+                    config: renderer.config
+                };
+                
+                await apiCall('/api/projects', {
+                    method: 'POST',
+                    body: JSON.stringify(projectData)
+                });
+                
+                showStatus(`Project "${currentProjectName}" updated successfully`, 'success');
+            } catch (error) {
+                console.error('Failed to save project:', error);
+                showStatus(`Failed to save project: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadSelectedProject() {
+            const selector = document.getElementById('projectSelector');
+            const projectName = selector.value;
+            
+            if (!projectName) {
+                showStatus('Please select a project to load', 'error');
+                return;
+            }
+            
+            // Confirm if current project has unsaved changes
+            if (currentProjectName !== 'Default Project' || Object.keys(graphData.nodes).length > 0) {
+                if (!confirm('Loading a new project will replace the current graph. Continue?')) {
+                    return;
+                }
+            }
+            
+            try {
+                // Load project from backend
+                const project = await apiCall(`/api/projects/${encodeURIComponent(projectName)}`);
+                
+                // Clear current graph
+                await clearGraph();
+                
+                // Load project data
+                currentProjectName = project.name;
+                graphData = { nodes: { ...project.nodes }, edges: { ...project.edges } };
+                
+                // Restore renderer configuration
+                if (project.config) {
+                    renderer.config = { ...project.config };
+                    renderer.updateConfigUI();
+                    
+                    // Update simulation forces
+                    renderer.simulation.force('charge').strength(-renderer.config.repulsion);
+                    renderer.simulation.force('link')
+                        .distance(renderer.config.linkDistance)
+                        .strength(renderer.config.linkStrength);
+                    renderer.simulation.force('x').strength(renderer.config.centering);
+                    renderer.simulation.force('y').strength(renderer.config.centering);
+                    renderer.simulation.force('collision').radius(renderer.config.collision);
+                }
+                
+                // Update the visualization
+                smartUpdateRenderer();
+                updateDropdowns();
+                updateCurrentProjectDisplay();
+                
+                // Clear selection
+                selectedNodeId = null;
+                renderer.updateNodeSelection();
+                
+                showStatus(`Project "${projectName}" loaded successfully`, 'success');
+            } catch (error) {
+                console.error('Failed to load project:', error);
+                showStatus(`Failed to load project: ${error.message}`, 'error');
+            }
+        }
+        
+        async function deleteSelectedProject() {
+            const selector = document.getElementById('projectSelector');
+            const projectName = selector.value;
+            
+            if (!projectName) {
+                showStatus('Please select a project to delete', 'error');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete project "${projectName}"? This cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                // Delete project from backend
+                await apiCall(`/api/projects/${encodeURIComponent(projectName)}`, {
+                    method: 'DELETE'
+                });
+                
+                // Update local state
+                delete savedProjects[projectName];
+                updateProjectSelector();
+                
+                // Reset selector
+                selector.value = '';
+                
+                showStatus(`Project "${projectName}" deleted successfully`, 'success');
+            } catch (error) {
+                console.error('Failed to delete project:', error);
+                showStatus(`Failed to delete project: ${error.message}`, 'error');
+            }
+        }
+        
+        function exportProject() {
+            const projectData = getCurrentProjectData();
+            const dataStr = JSON.stringify(projectData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `${currentProjectName.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.json`;
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = filename;
+            link.click();
+            
+            showStatus(`Project exported as ${filename}`, 'success');
+        }
+        
+        function importProject() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const text = await file.text();
+                    const projectData = JSON.parse(text);
+                    
+                    // Validate project data structure
+                    if (!projectData.name || !projectData.nodes || !projectData.edges) {
+                        throw new Error('Invalid project file format');
+                    }
+                    
+                    const projectName = projectData.name;
+                    
+                    if (savedProjects[projectName]) {
+                        if (!confirm(`Project "${projectName}" already exists. Overwrite it?`)) {
+                            return;
+                        }
+                    }
+                    
+                    // Save imported project
+                    savedProjects[projectName] = projectData;
+                    saveProjesToStorage();
+                    updateProjectSelector();
+                    
+                    showStatus(`Project "${projectName}" imported successfully`, 'success');
+                } catch (error) {
+                    showStatus(`Failed to import project: ${error.message}`, 'error');
+                }
+            };
+            input.click();
+        }
+        
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            refreshGraph();
+            // Setup search functionality
+            setupSearch();
+            
+            // Load saved projects
+            loadSavedProjects();
+            updateCurrentProjectDisplay();
+            
+            // Initial load - use full refresh
+            refreshGraph().then(() => {
+                // After initial load, start auto-refresh
+                startAutoRefresh();
+            });
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAutoRefresh();
         });
     </script>
 </body>
