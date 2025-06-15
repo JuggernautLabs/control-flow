@@ -38,6 +38,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+**What happens**: Your simple prompt gets automatically expanded with a complete JSON schema. The AI actually receives:
+
+<details>
+<summary>Click to see the full prompt sent to the AI</summary>
+
+```
+Analyze this Rust function for potential issues: fn unsafe_function() { /* code */ }
+
+Please respond with JSON that matches this exact schema:
+
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CodeAnalysis",
+  "type": "object",
+  "required": ["confidence", "finding", "evidence"],
+  "properties": {
+    "confidence": {
+      "description": "Confidence score from 0.0 to 1.0",
+      "type": "number",
+      "format": "double",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "finding": {
+      "description": "Primary finding from the analysis",
+      "type": "string"
+    },
+    "evidence": {
+      "description": "Supporting evidence",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
+
+Your response must be valid JSON that can be parsed into this structure. Include all required fields and follow the specified types.
+```
+</details>
+
 **Environment Setup**: Create `.env` file with `ANTHROPIC_API_KEY=your_key_here` or set environment variable.
 
 ## Overview
