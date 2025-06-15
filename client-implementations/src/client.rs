@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use tracing::{info, warn, error, debug, instrument};
 use regex::Regex;
+use schemars::{JsonSchema, schema_for};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientResponse {
@@ -390,6 +391,42 @@ pub trait LowLevelClient {
             }
         }
     }
+    
+    /// Generate a JSON schema for the return type and append it to the prompt
+    fn augment_prompt_with_schema<T>(&self, prompt: String) -> String
+    where
+        T: JsonSchema,
+    {
+        let schema = schema_for!(T);
+        let schema_json = serde_json::to_string_pretty(&schema)
+            .unwrap_or_else(|_| "{}".to_string());
+        
+        debug!(schema_len = schema_json.len(), "Generated JSON schema for return type");
+        
+        format!(
+            r#"{prompt}
+
+Please respond with JSON that matches this exact schema:
+
+```json
+{schema_json}
+```
+
+Your response must be valid JSON that can be parsed into this structure. Include all required fields and follow the specified types."#
+        )
+    }
+    
+    /// Ask with automatic schema-aware prompt augmentation
+    #[instrument(skip(self, prompt, config), fields(prompt_len = prompt.len()))]
+    async fn ask_with_schema<T>(&self, prompt: String, config: &RetryConfig) -> Result<T, QueryResolverError>
+    where
+        T: DeserializeOwned + JsonSchema + Send,
+    {
+        info!("Starting schema-aware query");
+        let augmented_prompt = self.augment_prompt_with_schema::<T>(prompt);
+        debug!(augmented_prompt_len = augmented_prompt.len(), "Generated schema-augmented prompt");
+        self.ask_with_retry(augmented_prompt, config).await
+    }
 }
 
 pub struct QueryResolver<C: LowLevelClient> {
@@ -415,5 +452,31 @@ impl<C: LowLevelClient + Send + Sync> QueryResolver<C> {
             Err(e) => error!(error = %e, "Query failed"),
         }
         result
+    }
+    
+    /// Query with automatic schema-aware prompt augmentation
+    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
+    pub async fn query_with_schema<T>(&self, prompt: String) -> Result<T, QueryResolverError>
+    where
+        T: DeserializeOwned + JsonSchema + Send,
+    {
+        info!(prompt_len = prompt.len(), "Starting schema-aware query");
+        let result = self.client.ask_with_schema(prompt, &self.config).await;
+        match &result {
+            Ok(_) => info!("Schema-aware query completed successfully"),
+            Err(e) => error!(error = %e, "Schema-aware query failed"),
+        }
+        result
+    }
+}
+
+/// Mock client for testing that returns empty responses
+#[derive(Debug, Clone)]
+pub struct MockVoid;
+
+#[async_trait]
+impl LowLevelClient for MockVoid {
+    async fn ask_raw(&self, _prompt: String) -> Result<String, AIError> {
+        Ok("{}".to_string())
     }
 }

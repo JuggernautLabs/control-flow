@@ -10,6 +10,9 @@ use std::env;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
+    
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
@@ -19,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check for API key
     let api_key = env::var("ANTHROPIC_API_KEY")
-        .expect("ANTHROPIC_API_KEY environment variable must be set");
+        .expect("ANTHROPIC_API_KEY environment variable must be set (check .env file)");
 
     // Step 1: Create project artifacts representing a real development scenario
     let artifacts = create_authentication_project_artifacts();
@@ -41,8 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         let result = claim_extractor.extract_verification_claims(artifact).await?;
         
-        println!("  ✅ Extracted {} claims in {}ms", 
+        println!("  ✅ Extracted {} claims from {:?}:{} in {}ms", 
                  result.claims.len(), 
+                 artifact.artifact_type, artifact.id,
                  result.processing_time_ms);
         
         for (i, claim) in result.claims.iter().enumerate() {

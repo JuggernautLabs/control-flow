@@ -1,6 +1,7 @@
 use crate::types::*;
 use crate::analysis::*;
 use async_trait::async_trait;
+use client_implementations::error::ClaudeError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn, error, debug};
@@ -60,8 +61,7 @@ pub struct ClaudeClaimExtractor {
 
 impl ClaudeClaimExtractor {
     pub fn new(api_key: String) -> Self {
-        let client = ClaudeClient::new(api_key)
-            .with_caching(true); // Enable caching for claim extraction
+        let client = ClaudeClient::with_api_key(api_key);
         let config = RetryConfig::default();
         let query_resolver = QueryResolver::new(client, config);
         
@@ -360,8 +360,8 @@ pub struct ClaudeAlignmentChecker {
 }
 
 impl ClaudeAlignmentChecker {
-    pub fn new(api_key: String) -> Self {
-        let client = ClaudeClient::new(api_key)
+    pub fn new(api_key: String) -> Self{
+        let client = ClaudeClient::with_api_key(api_key)
             .with_caching(true); // Enable caching for alignment checking
         let config = RetryConfig::default();
         let query_resolver = QueryResolver::new(client, config);
