@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn, error, debug, instrument};
+use std::env;
 
 #[derive(Debug, Serialize)]
 struct ClaudeRequest {
@@ -58,8 +59,26 @@ pub struct ClaudeClient {
 }
 
 impl ClaudeClient {
-    pub fn new(api_key: String) -> Self {
+    /// Create a new Claude client by reading ANTHROPIC_API_KEY from environment/.env
+    pub fn new() -> Result<Self, ClaudeError> {
+        // Try to load .env file (silently fail if not found)
+        let _ = dotenvy::dotenv();
+        
+        let api_key = env::var("ANTHROPIC_API_KEY")
+            .map_err(|_| ClaudeError::Authentication)?;
+            
         info!(model = "claude-3-5-sonnet-20241022", "Creating new Claude client with caching support");
+        Ok(Self {
+            api_key,
+            client: Client::new(),
+            model: "claude-3-5-sonnet-20241022".to_string(), // Use Sonnet for better caching
+            enable_caching: true,
+        })
+    }
+    
+    /// Create a new Claude client with an explicit API key
+    pub fn with_api_key(api_key: String) -> Self {
+        info!(model = "claude-3-5-sonnet-20241022", "Creating new Claude client with explicit API key");
         Self {
             api_key,
             client: Client::new(),
@@ -80,69 +99,7 @@ impl ClaudeClient {
         self
     }
     
-    /// Split prompt into cacheable base instructions and variable content
-    /// Returns (base_instructions, variable_content)
-    fn split_prompt_for_caching(&self, prompt: String) -> (String, String) {
-        // Look for our specific markers that indicate transition to variable content
-        if let Some(split_pos) = prompt.find("--- BEGIN ANALYSIS ---") {
-            let base_instructions = prompt[..split_pos].trim().to_string();
-            let variable_content = prompt[split_pos..].to_string();
-            
-            debug!(
-                base_len = base_instructions.len(),
-                variable_len = variable_content.len(),
-                "Split prompt using analysis marker"
-            );
-            
-            return (base_instructions, variable_content);
-        }
-        
-        if let Some(split_pos) = prompt.find("--- BEGIN ALIGNMENT ANALYSIS ---") {
-            let base_instructions = prompt[..split_pos].trim().to_string();
-            let variable_content = prompt[split_pos..].to_string();
-            
-            debug!(
-                base_len = base_instructions.len(),
-                variable_len = variable_content.len(),
-                "Split prompt using alignment analysis marker"
-            );
-            
-            return (base_instructions, variable_content);
-        }
-        
-        // Fallback: look for common patterns to identify the base instructions vs variable content
-        let lines: Vec<&str> = prompt.lines().collect();
-        let mut split_index = 0;
-        
-        for (i, line) in lines.iter().enumerate() {
-            // Look for markers that indicate transition to variable content
-            if line.contains("Artifact Type:") || 
-               line.contains("CLAIM TO EVALUATE:") ||
-               line.contains("Content:") ||
-               line.contains("```") {
-                split_index = i;
-                break;
-            }
-        }
-        
-        // Ensure we have enough content for caching (minimum 1024 tokens ≈ 3000 chars for safety)
-        let base_content = lines[..split_index].join("\n");
-        if base_content.len() < 2500 {
-            // If base instructions are too short, include more context
-            split_index = std::cmp::min(lines.len() * 2 / 3, lines.len());
-        }
-        
-        let base_instructions = lines[..split_index].join("\n");
-        let variable_content = lines[split_index..].join("\n");
-        
-        debug!(
-            base_len = base_instructions.len(),
-            variable_len = variable_content.len(),
-            "Split prompt using fallback logic"
-        );
-        
-        (base_instructions, variable_content)
-    }
+   
 }
 
 #[async_trait]
@@ -153,28 +110,15 @@ impl LowLevelClient for ClaudeClient {
         
         let content = if self.enable_caching && prompt.len() > 3000 {
             // Split prompt for optimal caching
-            let (base_instructions, variable_content) = self.split_prompt_for_caching(prompt);
-            
-            info!(
-                base_len = base_instructions.len(),
-                variable_len = variable_content.len(),
-                "Using structured prompt with caching"
-            );
             
             ClaudeMessageContent::Structured(vec![
                 // Base instructions - cacheable
                 ClaudeContentBlock {
                     block_type: "text".to_string(),
-                    text: base_instructions,
+                    text: prompt,
                     cache_control: Some(CacheControl {
                         cache_type: "ephemeral".to_string(),
                     }),
-                },
-                // Variable content - not cached
-                ClaudeContentBlock {
-                    block_type: "text".to_string(),
-                    text: variable_content,
-                    cache_control: None,
                 },
             ])
         } else {
