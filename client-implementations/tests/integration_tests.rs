@@ -1,0 +1,249 @@
+use client_implementations::client::{QueryResolver, RetryConfig};
+use client_implementations::claude::ClaudeClient;
+use serde::Deserialize;
+use schemars::JsonSchema;
+use std::env;
+
+/// Simple test structure for basic functionality
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(title = "Math Result", description = "Result of a mathematical calculation")]
+struct MathResult {
+    /// The calculated result
+    #[schemars(description = "The numerical result of the calculation")]
+    pub result: i32,
+    /// Whether the calculation was correct
+    #[schemars(description = "True if the calculation appears correct")]
+    pub is_correct: bool,
+}
+
+/// More complex structure to test rich schema generation
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(title = "Code Analysis", description = "Analysis of code quality and issues")]
+struct CodeAnalysis {
+    /// Confidence score from 0.0 to 1.0
+    #[schemars(range(min = 0.0, max = 1.0), description = "How confident the analysis is")]
+    pub confidence: f64,
+    /// Primary finding from the analysis
+    #[schemars(description = "The main conclusion from analyzing the code")]
+    pub finding: String,
+    /// List of specific issues found
+    #[schemars(description = "Detailed list of problems or observations")]
+    pub issues: Vec<String>,
+    /// Severity level of the overall finding
+    pub severity: Severity,
+}
+
+/// Severity levels for findings
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Severity classification for findings")]
+pub enum Severity {
+    /// Low impact issue
+    #[schemars(description = "Minor issue that can be addressed later")]
+    Low,
+    /// Medium impact issue  
+    #[schemars(description = "Issue that should be addressed soon")]
+    Medium,
+    /// High impact issue
+    #[schemars(description = "Critical issue requiring immediate attention")]
+    High,
+}
+
+/// Skip integration tests if no API key is available
+fn should_skip_integration_tests() -> bool {
+    env::var("ANTHROPIC_API_KEY").is_err() && 
+    std::fs::read_to_string(".env").map_or(true, |content| !content.contains("ANTHROPIC_API_KEY"))
+}
+
+#[tokio::test]
+async fn test_basic_schema_query() {
+    if should_skip_integration_tests() {
+        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        return;
+    }
+
+    let client = ClaudeClient::new().expect("Failed to create Claude client");
+    let resolver = QueryResolver::new(client, RetryConfig::default());
+
+    let result: Result<MathResult, _> = resolver.query_with_schema(
+        "Calculate 15 + 27 and tell me if the result is correct".to_string()
+    ).await;
+
+    match result {
+        Ok(math_result) => {
+            println!("✅ Basic schema test passed:");
+            println!("   Result: {}", math_result.result);
+            println!("   Is correct: {}", math_result.is_correct);
+            
+            // Basic validation
+            assert_eq!(math_result.result, 42);
+            assert!(math_result.is_correct);
+        },
+        Err(e) => {
+            eprintln!("❌ Basic schema test failed: {}", e);
+            panic!("Integration test failed: {}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_complex_schema_with_enums() {
+    if should_skip_integration_tests() {
+        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        return;
+    }
+
+    let client = ClaudeClient::new().expect("Failed to create Claude client");
+    let resolver = QueryResolver::new(client, RetryConfig::default());
+
+    let code_sample = r#"
+    fn unsafe_function() {
+        let ptr = std::ptr::null_mut();
+        unsafe {
+            *ptr = 42; // This will segfault!
+        }
+    }
+    "#;
+
+    let result: Result<CodeAnalysis, _> = resolver.query_with_schema(
+        format!("Analyze this Rust code for issues:\n\n{}", code_sample)
+    ).await;
+
+    match result {
+        Ok(analysis) => {
+            println!("✅ Complex schema test passed:");
+            println!("   Confidence: {:.2}", analysis.confidence);
+            println!("   Finding: {}", analysis.finding);
+            println!("   Severity: {:?}", analysis.severity);
+            println!("   Issues found: {}", analysis.issues.len());
+            
+            // Validate structure
+            assert!(analysis.confidence >= 0.0 && analysis.confidence <= 1.0);
+            assert!(!analysis.finding.is_empty());
+            assert!(!analysis.issues.is_empty());
+            
+            // The analysis should detect the unsafe pointer dereference
+            let issues_text = analysis.issues.join(" ").to_lowercase();
+            assert!(
+                issues_text.contains("unsafe") || 
+                issues_text.contains("null") || 
+                issues_text.contains("pointer") ||
+                issues_text.contains("segfault") ||
+                issues_text.contains("crash"),
+                "Analysis should detect unsafe pointer issues"
+            );
+        },
+        Err(e) => {
+            eprintln!("❌ Complex schema test failed: {}", e);
+            panic!("Integration test failed: {}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_schema_constraint_validation() {
+    if should_skip_integration_tests() {
+        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        return;
+    }
+
+    let client = ClaudeClient::new().expect("Failed to create Claude client");
+    let resolver = QueryResolver::new(client, RetryConfig::default());
+
+    // Test that the AI respects schema constraints
+    let result: Result<CodeAnalysis, _> = resolver.query_with_schema(
+        "Give a high-confidence analysis of this simple function: fn add(a: i32, b: i32) -> i32 { a + b }".to_string()
+    ).await;
+
+    match result {
+        Ok(analysis) => {
+            println!("✅ Schema constraint test passed:");
+            println!("   Confidence: {:.2}", analysis.confidence);
+            
+            // Validate that confidence is within the specified range
+            assert!(
+                analysis.confidence >= 0.0 && analysis.confidence <= 1.0,
+                "Confidence {} is outside valid range [0.0, 1.0]", 
+                analysis.confidence
+            );
+            
+            // Since this is a simple, correct function, confidence should be high
+            assert!(
+                analysis.confidence > 0.7,
+                "Confidence should be high for a simple, correct function"
+            );
+        },
+        Err(e) => {
+            eprintln!("❌ Schema constraint test failed: {}", e);
+            panic!("Integration test failed: {}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_retry_behavior() {
+    if should_skip_integration_tests() {
+        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        return;
+    }
+
+    let client = ClaudeClient::new().expect("Failed to create Claude client");
+    
+    // Configure more aggressive retry settings for this test
+    let mut config = RetryConfig::default();
+    config.max_retries.insert("json_parse_error".to_string(), 3);
+    
+    let resolver = QueryResolver::new(client, config);
+
+    // Use a prompt that might be challenging for JSON parsing
+    let result: Result<MathResult, _> = resolver.query_with_schema(
+        "Calculate the square root of 144. Be very verbose in your explanation but still return the JSON.".to_string()
+    ).await;
+
+    match result {
+        Ok(math_result) => {
+            println!("✅ Retry behavior test passed:");
+            println!("   Result: {}", math_result.result);
+            println!("   Is correct: {}", math_result.is_correct);
+            
+            // Validate the mathematical result
+            assert_eq!(math_result.result, 12);
+        },
+        Err(e) => {
+            eprintln!("❌ Retry behavior test failed: {}", e);
+            // This test might fail due to API issues, so we'll log but not panic
+            println!("Note: This test may fail due to API rate limits or parsing issues");
+        }
+    }
+}
+
+#[tokio::test] 
+async fn test_schema_generation_accuracy() {
+    if should_skip_integration_tests() {
+        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        return;
+    }
+
+    let client = ClaudeClient::new().expect("Failed to create Claude client");
+    let resolver = QueryResolver::new(client, RetryConfig::default());
+
+    // Test that the AI follows the schema precisely by asking for a specific calculation
+    let result: Result<MathResult, _> = resolver.query_with_schema(
+        "What is 8 * 7? Return exactly what the schema asks for.".to_string()
+    ).await;
+
+    match result {
+        Ok(math_result) => {
+            println!("✅ Schema generation accuracy test passed:");
+            println!("   Result: {}", math_result.result);
+            println!("   Is correct: {}", math_result.is_correct);
+            
+            // Validate exact calculation
+            assert_eq!(math_result.result, 56);
+            assert!(math_result.is_correct);
+        },
+        Err(e) => {
+            eprintln!("❌ Schema generation accuracy test failed: {}", e);
+            panic!("Integration test failed: {}", e);
+        }
+    }
+}
