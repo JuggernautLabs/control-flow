@@ -628,7 +628,34 @@ cargo run --example schema_demo
 
 # Rich documentation features
 cargo run --example rich_schema_demo
+
+# Doc comment demonstration
+cargo run --example doc_comment_test
 ```
+
+## Testing
+
+The library includes comprehensive integration tests that verify real API behavior:
+
+```bash
+# Run all tests (requires ANTHROPIC_API_KEY)
+cargo test
+
+# Run integration tests specifically
+cargo test --test integration_tests
+
+# Run with output to see test results
+cargo test --test integration_tests -- --nocapture
+```
+
+**Note**: Integration tests require a valid `ANTHROPIC_API_KEY` in your environment or `.env` file. Without it, tests will be skipped automatically.
+
+The integration tests verify:
+- ✅ Basic schema-aware queries work correctly
+- ✅ Complex schemas with enums and constraints
+- ✅ Schema constraint validation (ranges, types)
+- ✅ Retry behavior for parsing failures
+- ✅ Accurate schema generation and AI adherence
 
 ## Benefits
 

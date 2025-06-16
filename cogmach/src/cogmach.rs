@@ -5,7 +5,7 @@ use std::time::Instant;
 use tracing::{info, warn, error, debug, trace, instrument, span, Level};
 
 // Use the external client implementations
-use client_implementations::client::{LowLevelClient, QueryResolver, RetryConfig};
+use client_implementations::client::{LowLevelClient, QueryResolver, RetryConfig, SmartClient};
 use client_implementations::error::QueryResolverError;
 
   
@@ -140,11 +140,11 @@ pub goal: String,
 
 // ==== IMPLEMENTATION: The Fundamental Cycle ====
 
-pub struct FundamentalCognitionMachine<C: LowLevelClient> {
+pub struct FundamentalCognitionMachine<C: SmartClient> {
 resolver: QueryResolver<C>,
 }
 
-impl<C: LowLevelClient + Send + Sync> FundamentalCognitionMachine<C> {
+impl<C: SmartClient> FundamentalCognitionMachine<C> {
 #[instrument(skip(client))]
 pub fn new(client: C) -> Self {
     info!("Creating new FundamentalCognitionMachine");
@@ -190,7 +190,7 @@ pub fn observe<'a>(&'a self, lens: &'a Lens, context: Option<&'a str>) -> std::p
 
 {}
 
-Focus on what's actually present in the code. Set valid_structure to true if the code is syntactically valid Python, false otherwise. List all function and class names found in the code. Provide an overall description of the code structure."#, code
+Focus on what's actually present in the code"#, code
             );
 
             /// Response containing Python code structure analysis

@@ -7,6 +7,10 @@ use tracing::{info, warn, error, debug, instrument};
 use regex::Regex;
 use schemars::{JsonSchema, schema_for};
 
+pub trait SmartClient: LowLevelClient + Send + Sync {}
+
+// Auto-implement for any type that meets the bounds
+impl<T> SmartClient for T where T: LowLevelClient + Send + Sync {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientResponse {
     /// The raw response from the AI model
