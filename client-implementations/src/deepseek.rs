@@ -1,4 +1,4 @@
-use crate::client::LowLevelClient;
+use crate::client::{LowLevelClient};
 use crate::error::{AIError, DeepSeekError};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -41,6 +41,21 @@ pub struct DeepSeekClient {
     client: Client,
     model: String,
 }
+
+impl Default for DeepSeekClient {
+    fn default() -> Self {
+        let api_key = env::var("DEEPSEEK_API_KEY")
+            .expect("DEEPSEEK_API_KEY environment variable must be set");
+            
+        info!(model = "deepseek-chat", "Creating new DeepSeek client");
+        Self {
+            api_key,
+            client: Client::new(),
+            model: "deepseek-chat".to_string(),
+        }
+    }
+}
+
 
 impl DeepSeekClient {
     /// Create a new DeepSeek client by reading DEEPSEEK_API_KEY from environment/.env
@@ -151,5 +166,9 @@ impl LowLevelClient for DeepSeekClient {
         }
         
         result
+    }
+    
+    fn clone_box(&self) -> Box<dyn LowLevelClient + Send + Sync> {
+        Box::new(self.clone())
     }
 }

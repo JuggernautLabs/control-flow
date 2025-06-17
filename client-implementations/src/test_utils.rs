@@ -1,6 +1,4 @@
-use crate::client::{LowLevelClient, QueryResolver, RetryConfig, MockVoid};
-use crate::claude::ClaudeClient;
-use crate::deepseek::DeepSeekClient;
+use crate::client::{LowLevelClient, QueryResolver, RetryConfig, FlexibleClient};
 use std::env;
 use std::sync::OnceLock;
 
@@ -38,8 +36,8 @@ impl ClientType {
     }
 }
 
-/// Global lazy-initialized client instance
-static CLIENT_INSTANCE: OnceLock<Box<dyn LowLevelClient + Send + Sync>> = OnceLock::new();
+/// Global lazy-initialized flexible client instance
+static FLEXIBLE_CLIENT_INSTANCE: OnceLock<FlexibleClient> = OnceLock::new();
 
 /// Get the configured client type from environment
 pub fn get_client_type() -> ClientType {
@@ -49,90 +47,62 @@ pub fn get_client_type() -> ClientType {
         .unwrap_or_else(ClientType::default)
 }
 
-/// Create a client instance based on the client type
-fn create_client(client_type: ClientType) -> Result<Box<dyn LowLevelClient + Send + Sync>, Box<dyn std::error::Error + Send + Sync>> {
+/// Create a FlexibleClient based on the client type
+fn create_flexible_client(client_type: ClientType) -> FlexibleClient {
     match client_type {
-        ClientType::Claude => {
-            let client = ClaudeClient::new()
-                .map_err(|e| format!("Failed to create Claude client: {}", e))?;
-            Ok(Box::new(client))
-        },
-        ClientType::DeepSeek => {
-            let client = DeepSeekClient::new()
-                .map_err(|e| format!("Failed to create DeepSeek client: {}", e))?;
-            Ok(Box::new(client))
-        },
-        ClientType::Mock => {
-            Ok(Box::new(MockVoid))
-        }
+        ClientType::Claude => FlexibleClient::claude(),
+        ClientType::DeepSeek => FlexibleClient::deepseek(), 
+        ClientType::Mock => FlexibleClient::mock(),
     }
 }
 
-/// Get the global client instance (lazy initialized)
-pub fn get_test_client() -> &'static Box<dyn LowLevelClient + Send + Sync> {
-    CLIENT_INSTANCE.get_or_init(|| {
+/// Get the global flexible client instance (lazy initialized)
+pub fn get_test_flexible_client() -> &'static FlexibleClient {
+    FLEXIBLE_CLIENT_INSTANCE.get_or_init(|| {
         let client_type = get_client_type();
-        
-        match create_client(client_type.clone()) {
-            Ok(client) => {
-                eprintln!("✅ Created test client: {:?}", client_type);
-                client
-            },
-            Err(e) => {
-                eprintln!("⚠️  Failed to create {:?} client: {}", client_type, e);
-                eprintln!("   Falling back to MockVoid for tests");
-                Box::new(MockVoid)
-            }
-        }
+        eprintln!("✅ Created flexible test client: {:?}", client_type);
+        create_flexible_client(client_type)
     })
 }
 
+/// Create a new owned FlexibleClient instance using the configured client type
+pub fn create_default_flexible_client() -> FlexibleClient {
+    create_flexible_client(get_client_type())
+}
+
+/// Create a new owned instance of Box<dyn LowLevelClient + Send + Sync> based on client type
+pub fn create_boxed_client(client_type: ClientType) -> Box<dyn LowLevelClient + Send + Sync> {
+    create_flexible_client(client_type).into_inner()
+}
+
+/// Create a new owned instance using the configured client type
+pub fn create_default_boxed_client() -> Box<dyn LowLevelClient + Send + Sync> {
+    create_default_flexible_client().into_inner()
+}
+
 /// Create a QueryResolver with the configured test client
-/// Note: We clone the Box to avoid lifetime issues
+/// Note: We create a new owned client instance to avoid lifetime issues
 pub fn create_test_resolver() -> QueryResolver<Box<dyn LowLevelClient + Send + Sync>> {
-    let _client = get_test_client();
-    
-    // Clone the client based on its type
-    let cloned_client: Box<dyn LowLevelClient + Send + Sync> = match get_client_type() {
-        ClientType::Claude => {
-            // We can't clone Claude client easily, so create a new one
-            match ClaudeClient::new() {
-                Ok(client) => Box::new(client),
-                Err(_) => Box::new(MockVoid),
-            }
-        },
-        ClientType::DeepSeek => {
-            // We can't clone DeepSeek client easily, so create a new one
-            match DeepSeekClient::new() {
-                Ok(client) => Box::new(client),
-                Err(_) => Box::new(MockVoid),
-            }
-        },
-        ClientType::Mock => Box::new(MockVoid),
-    };
-    
-    QueryResolver::new(cloned_client, RetryConfig::default())
+    let client = create_default_boxed_client();
+    QueryResolver::new(client, RetryConfig::default())
 }
 
 /// Create a QueryResolver with custom retry configuration
 pub fn create_test_resolver_with_config(config: RetryConfig) -> QueryResolver<Box<dyn LowLevelClient + Send + Sync>> {
-    let cloned_client: Box<dyn LowLevelClient + Send + Sync> = match get_client_type() {
-        ClientType::Claude => {
-            match ClaudeClient::new() {
-                Ok(client) => Box::new(client),
-                Err(_) => Box::new(MockVoid),
-            }
-        },
-        ClientType::DeepSeek => {
-            match DeepSeekClient::new() {
-                Ok(client) => Box::new(client),
-                Err(_) => Box::new(MockVoid),
-            }
-        },
-        ClientType::Mock => Box::new(MockVoid),
-    };
-    
-    QueryResolver::new(cloned_client, config)
+    let client = create_default_boxed_client();
+    QueryResolver::new(client, config)
+}
+
+/// Create a QueryResolver using FlexibleClient directly
+pub fn create_flexible_test_resolver() -> QueryResolver<FlexibleClient> {
+    let client = create_default_flexible_client();
+    QueryResolver::new(client, RetryConfig::default())
+}
+
+/// Create a QueryResolver using FlexibleClient with custom retry configuration
+pub fn create_flexible_test_resolver_with_config(config: RetryConfig) -> QueryResolver<FlexibleClient> {
+    let client = create_default_flexible_client();
+    QueryResolver::new(client, config)
 }
 
 /// Check if we should skip integration tests (i.e., we're using MockVoid)

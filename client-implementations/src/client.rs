@@ -30,11 +30,13 @@ impl Default for RetryConfig {
     }
 }
 
+
+
 /// Low-level client trait that only requires implementing ask_raw.
 /// This trait can be used as dyn LowLevelClient for dynamic dispatch.
 /// JSON processing is handled by utility functions with a convenience method.
 #[async_trait]
-pub trait LowLevelClient {
+pub trait LowLevelClient: Clone {
     /// The only method that implementations must provide
     async fn ask_raw(&self, prompt: String) -> Result<String, AIError>;
     
@@ -276,14 +278,16 @@ Your response must be valid JSON that can be parsed into this structure. Include
 }
 
 /// Mock client for testing that returns empty responses
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MockVoid;
+
 
 #[async_trait]
 impl LowLevelClient for MockVoid {
     async fn ask_raw(&self, _prompt: String) -> Result<String, AIError> {
         Ok("{}".to_string())
     }
+
 }
 
 // Note: We don't implement LowLevelClient for &dyn LowLevelClient 
@@ -293,5 +297,115 @@ impl LowLevelClient for MockVoid {
 impl LowLevelClient for Box<dyn LowLevelClient + Send + Sync> {
     async fn ask_raw(&self, prompt: String) -> Result<String, AIError> {
         self.as_ref().ask_raw(prompt).await
+    }
+
+}
+
+/// Flexible client that wraps any LowLevelClient and provides factory functions
+pub struct FlexibleClient {
+    inner: Box<dyn LowLevelClient + Send + Sync>,
+}
+
+impl std::fmt::Debug for FlexibleClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FlexibleClient")
+            .field("inner", &"<dyn LowLevelClient>")
+            .finish()
+    }
+}
+
+impl FlexibleClient {
+    /// Create a new FlexibleClient wrapping the given client
+    pub fn new(client: Box<dyn LowLevelClient + Send + Sync>) -> Self {
+        Self { inner: client }
+    }
+    
+    /// Create a FlexibleClient with a Claude client
+    pub fn claude() -> Self {
+        use crate::claude::ClaudeClient;
+        Self::new(Box::new(ClaudeClient::default()))
+    }
+    
+    /// Create a FlexibleClient with a DeepSeek client  
+    pub fn deepseek() -> Self {
+        use crate::deepseek::DeepSeekClient;
+        Self::new(Box::new(DeepSeekClient::default()))
+    }
+    
+    /// Create a FlexibleClient with a mock client
+    pub fn mock() -> Self {
+        Self::new(Box::new(MockVoid::default()))
+    }
+    
+    /// Get a reference to the inner client
+    pub fn inner(&self) -> &Box<dyn LowLevelClient + Send + Sync> {
+        &self.inner
+    }
+    
+    /// Clone the inner client as a new Box
+    pub fn clone_inner(&self) -> Box<dyn LowLevelClient + Send + Sync> {
+        Box::new(self.inner.clone())
+    }
+    
+    /// Convert into the inner boxed client
+    pub fn into_inner(self) -> Box<dyn LowLevelClient + Send + Sync> {
+        self.inner
+    }
+}
+
+impl Clone for FlexibleClient {
+    fn clone(&self) -> Self {
+        Self::new(self.clone_inner())
+    }
+}
+
+#[async_trait]
+impl LowLevelClient for FlexibleClient {
+    async fn ask_raw(&self, prompt: String) -> Result<String, AIError> {
+        self.inner.ask_raw(prompt).await
+    }
+    
+    fn clone_box(&self) -> Box<dyn LowLevelClient + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
+
+/// Factory functions for creating boxed client instances
+pub mod factory {
+    use super::*;
+    use crate::claude::ClaudeClient;
+    use crate::deepseek::DeepSeekClient;
+    
+    /// Supported client types for factory construction
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ClientType {
+        Claude,
+        DeepSeek,
+        Mock,
+    }
+    
+    /// Create a new owned instance of Box<dyn LowLevelClient + Send + Sync>
+    /// This function allows you to construct boxed clients at will for testing or dynamic usage
+    pub fn create_boxed_client(client_type: ClientType) -> Box<dyn LowLevelClient + Send + Sync> {
+        match client_type {
+            ClientType::Claude => Box::new(ClaudeClient::default()),
+            ClientType::DeepSeek => Box::new(DeepSeekClient::default()),
+            ClientType::Mock => Box::new(MockVoid::default()),
+        }
+    }
+    
+    /// Create a Claude client boxed as dyn LowLevelClient
+    pub fn create_claude_client() -> Box<dyn LowLevelClient + Send + Sync> {
+        create_boxed_client(ClientType::Claude)
+    }
+    
+    /// Create a DeepSeek client boxed as dyn LowLevelClient
+    pub fn create_deepseek_client() -> Box<dyn LowLevelClient + Send + Sync> {
+        create_boxed_client(ClientType::DeepSeek)
+    }
+    
+    /// Create a mock client boxed as dyn LowLevelClient
+    pub fn create_mock_client() -> Box<dyn LowLevelClient + Send + Sync> {
+        create_boxed_client(ClientType::Mock)
     }
 }

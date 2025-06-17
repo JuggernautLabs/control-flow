@@ -1,4 +1,4 @@
-use crate::client::LowLevelClient;
+use crate::client::{LowLevelClient};
 use crate::error::{AIError, ClaudeError};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -59,23 +59,23 @@ pub struct ClaudeClient {
     enable_caching: bool,
 }
 
-impl ClaudeClient {
-    /// Create a new Claude client by reading ANTHROPIC_API_KEY from environment/.env
-    pub fn new() -> Result<Self, ClaudeError> {
-        // Try to load .env file (silently fail if not found)
-        let _ = dotenvy::dotenv();
-        
+impl Default for ClaudeClient {
+    fn default() -> Self {
         let api_key = env::var("ANTHROPIC_API_KEY")
-            .map_err(|_| ClaudeError::Authentication)?;
+            .expect("ANTHROPIC_API_KEY environment variable must be set");
             
         info!(model = "claude-3-5-sonnet-20241022", "Creating new Claude client with caching support");
-        Ok(Self {
+        Self {
             api_key,
             client: Client::new(),
-            model: "claude-3-5-sonnet-20241022".to_string(), // Use Sonnet for better caching
+            model: "claude-3-5-sonnet-20241022".to_string(),
             enable_caching: true,
-        })
+        }
     }
+}
+
+impl ClaudeClient {
+
     
     /// Create a new Claude client with an explicit API key
     pub fn with_api_key(api_key: String) -> Self {
