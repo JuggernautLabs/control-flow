@@ -5,7 +5,7 @@ use std::time::Instant;
 use tracing::{info, warn, error, debug, trace, instrument, span, Level};
 
 // Use the external client implementations
-use client_implementations::client::{LowLevelClient, QueryResolver, RetryConfig, SmartClient};
+use client_implementations::client::{LowLevelClient, QueryResolver, RetryConfig};
 use client_implementations::error::QueryResolverError;
 
   
