@@ -51,6 +51,7 @@ struct ClaudeContent {
     text: String,
 }
 
+#[derive(Clone)]
 pub struct ClaudeClient {
     api_key: String,
     client: Client,

@@ -7,7 +7,7 @@ use std::env;
 /// Simple test structure for basic functionality
 #[derive(Debug, Deserialize, JsonSchema)]
 #[schemars(title = "Math Result", description = "Result of a mathematical calculation")]
-struct MathResult {
+pub struct MathResult {
     /// The calculated result
     #[schemars(description = "The numerical result of the calculation")]
     pub result: i32,
@@ -19,7 +19,7 @@ struct MathResult {
 /// More complex structure to test rich schema generation
 #[derive(Debug, Deserialize, JsonSchema)]
 #[schemars(title = "Code Analysis", description = "Analysis of code quality and issues")]
-struct CodeAnalysis {
+pub struct CodeAnalysis {
     /// Confidence score from 0.0 to 1.0
     #[schemars(range(min = 0.0, max = 1.0), description = "How confident the analysis is")]
     pub confidence: f64,

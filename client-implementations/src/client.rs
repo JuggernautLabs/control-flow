@@ -368,6 +368,12 @@ pub trait LowLevelClient {
                             crate::error::OpenAIError::Api(_) => "api_error",
                             _ => "other",
                         },
+                        AIError::DeepSeek(deepseek_err) => match deepseek_err {
+                            crate::error::DeepSeekError::RateLimit => "rate_limit",
+                            crate::error::DeepSeekError::Http(_) => "http_error",
+                            crate::error::DeepSeekError::Api(_) => "api_error",
+                            _ => "other",
+                        },
                     };
                     
                     let max_retries = config.max_retries.get(error_type)
