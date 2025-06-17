@@ -1,4 +1,4 @@
-use client_implementations::client::{LowLevelClient, QueryResolver, RetryConfig, MockVoid};
+use client_implementations::client::{QueryResolver, RetryConfig, MockVoid};
 use serde::{Deserialize, Serialize};
 use schemars::{JsonSchema, schema_for};
 
@@ -214,8 +214,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Structure-Agnostic Prompt Example ===");
     let simple_prompt = "Analyze this code for security issues".to_string();
     
-    let augmented_prompt = client.augment_prompt_with_schema::<EnhancedAnalysisResult>(simple_prompt);
-    println!("Original prompt: 'Analyze this code for security issues'");
+    let augmented_prompt = _resolver.augment_prompt_with_schema::<EnhancedAnalysisResult>(simple_prompt.clone());
+    println!("Original prompt: '{}'", simple_prompt);
     println!("Length after schema augmentation: {} characters", augmented_prompt.len());
     println!("Schema provides all structural details automatically!\n");
     

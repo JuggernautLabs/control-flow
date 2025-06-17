@@ -1,4 +1,4 @@
-use client_implementations::client::{LowLevelClient, QueryResolver, RetryConfig, MockVoid};
+use client_implementations::client::{QueryResolver, RetryConfig, MockVoid};
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
 
@@ -71,9 +71,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Demonstrate the schema generation directly
     println!("\n=== Generated Schema Examples ===");
-    let mock_client = MockVoid;
     
-    let analysis_schema_prompt = mock_client.augment_prompt_with_schema::<AnalysisResult>(
+    let analysis_schema_prompt = resolver.augment_prompt_with_schema::<AnalysisResult>(
         "Analyze this code".to_string()
     );
     println!("AnalysisResult schema-augmented prompt:");
@@ -81,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("\n{}", "=".repeat(80));
     
-    let review_schema_prompt = mock_client.augment_prompt_with_schema::<CodeReview>(
+    let review_schema_prompt = resolver.augment_prompt_with_schema::<CodeReview>(
         "Review this code".to_string()
     );
     println!("CodeReview schema-augmented prompt:");

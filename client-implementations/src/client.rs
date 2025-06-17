@@ -7,10 +7,6 @@ use tracing::{info, warn, error, debug, instrument};
 use regex::Regex;
 use schemars::{JsonSchema, schema_for};
 
-pub trait SmartClient: LowLevelClient + Send + Sync {}
-
-// Auto-implement for any type that meets the bounds
-impl<T> SmartClient for T where T: LowLevelClient + Send + Sync {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientResponse {
     /// The raw response from the AI model
@@ -60,10 +56,16 @@ impl Default for RetryConfig {
         }
     }
 }
+
+/// Low-level client trait that only requires implementing ask_raw
+/// and provides non-generic utility methods for JSON processing.
+/// This trait can be used as dyn LowLevelClient for dynamic dispatch.
 #[async_trait]
 pub trait LowLevelClient {
+    /// The only method that implementations must provide
     async fn ask_raw(&self, prompt: String) -> Result<String, AIError>;
     
+    /// Process a raw response and extract JSON with metadata
     fn process_response(&self, raw_response: String, processing_time_ms: u64) -> ClientResponse {
         debug!(response_len = raw_response.len(), "Processing response to extract JSON");
         
@@ -263,6 +265,7 @@ pub trait LowLevelClient {
         None
     }
     
+    /// Simple JSON extraction from a prompt response
     async fn ask_json(&self, prompt: String) -> Result<String, AIError> {
         debug!(prompt_len = prompt.len(), "Starting ask_json");
         let raw_response = self.ask_raw(prompt).await?;
@@ -270,16 +273,78 @@ pub trait LowLevelClient {
         debug!(raw_len = raw_response.len(), json_len = json_content.len(), "Extracted JSON from response");
         Ok(json_content)
     }
+}
+
+/// Query resolver that wraps a LowLevelClient and provides all generic methods.
+/// This allows for flexible composition - you can have arrays of dyn LowLevelClient
+/// and wrap them in QueryResolver as needed.
+pub struct QueryResolver<C: LowLevelClient> {
+    client: C,
+    config: RetryConfig,
+}
+
+impl<C: LowLevelClient + Send + Sync> QueryResolver<C> {
+    pub fn new(client: C, config: RetryConfig) -> Self {
+        info!(default_max_retries = config.default_max_retries, "Creating new QueryResolver with retry config");
+        Self { client, config }
+    }
     
-    #[instrument(skip(self, prompt, config), fields(prompt_len = prompt.len()))]
-    async fn ask_with_retry<T>(&self, prompt: String, config: &RetryConfig) -> Result<T, QueryResolverError>
+    /// Get a reference to the underlying client
+    pub fn client(&self) -> &C {
+        &self.client
+    }
+    
+    /// Get a reference to the retry configuration
+    pub fn config(&self) -> &RetryConfig {
+        &self.config
+    }
+    
+    /// Update the retry configuration
+    pub fn with_config(mut self, config: RetryConfig) -> Self {
+        self.config = config;
+        self
+    }
+    
+    /// Query with retry logic and automatic JSON parsing
+    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
+    pub async fn query<T>(&self, prompt: String) -> Result<T, QueryResolverError>
+    where
+        T: DeserializeOwned + Send,
+    {
+        info!(prompt_len = prompt.len(), "Starting query");
+        let result = self.ask_with_retry(prompt).await;
+        match &result {
+            Ok(_) => info!("Query completed successfully"),
+            Err(e) => error!(error = %e, "Query failed"),
+        }
+        result
+    }
+    
+    /// Query with automatic schema-aware prompt augmentation
+    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
+    pub async fn query_with_schema<T>(&self, prompt: String) -> Result<T, QueryResolverError>
+    where
+        T: DeserializeOwned + JsonSchema + Send,
+    {
+        info!(prompt_len = prompt.len(), "Starting schema-aware query");
+        let result = self.ask_with_schema(prompt).await;
+        match &result {
+            Ok(_) => info!("Schema-aware query completed successfully"),
+            Err(e) => error!(error = %e, "Schema-aware query failed"),
+        }
+        result
+    }
+    
+    /// Internal method for retry logic with JSON parsing
+    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
+    async fn ask_with_retry<T>(&self, prompt: String) -> Result<T, QueryResolverError>
     where
         T: DeserializeOwned + Send,
     {
         let mut attempt = 0;
         let mut context = String::new();
         
-        info!(attempt = 0, max_retries = config.default_max_retries, "Starting retry loop for prompt");
+        info!(attempt = 0, max_retries = self.config.default_max_retries, "Starting retry loop for prompt");
         
         loop {
             let full_prompt = if context.is_empty() {
@@ -289,7 +354,7 @@ pub trait LowLevelClient {
             };
             
             debug!(attempt = attempt + 1, prompt_len = full_prompt.len(), "Making API call");
-            match self.ask_json(full_prompt.clone()).await {
+            match self.client.ask_json(full_prompt.clone()).await {
                 Ok(response) => {
                     debug!(response_len = response.len(), "Received API response");
                     match serde_json::from_str::<T>(&response) {
@@ -305,8 +370,8 @@ pub trait LowLevelClient {
                             );
                             
                             // Try advanced JSON extraction on the raw response
-                            if let Ok(raw_response) = self.ask_raw(full_prompt.clone()).await {
-                                if let Some(extracted_json) = self.extract_json_advanced(&raw_response) {
+                            if let Ok(raw_response) = self.client.ask_raw(full_prompt.clone()).await {
+                                if let Some(extracted_json) = self.client.extract_json_advanced(&raw_response) {
                                     debug!(extracted_len = extracted_json.len(), "Trying to parse extracted JSON after initial failure");
                                     match serde_json::from_str::<T>(&extracted_json) {
                                         Ok(parsed) => {
@@ -327,8 +392,8 @@ pub trait LowLevelClient {
                             }
                             
                             // If we're at max retries, return the error
-                            let max_retries = config.max_retries.get("json_parse_error")
-                                .unwrap_or(&config.default_max_retries);
+                            let max_retries = self.config.max_retries.get("json_parse_error")
+                                .unwrap_or(&self.config.default_max_retries);
                             
                             if attempt >= *max_retries {
                                 error!(
@@ -376,8 +441,8 @@ pub trait LowLevelClient {
                         },
                     };
                     
-                    let max_retries = config.max_retries.get(error_type)
-                        .unwrap_or(&config.default_max_retries);
+                    let max_retries = self.config.max_retries.get(error_type)
+                        .unwrap_or(&self.config.default_max_retries);
                     
                     if attempt >= *max_retries {
                         error!(
@@ -403,7 +468,7 @@ pub trait LowLevelClient {
     }
     
     /// Generate a JSON schema for the return type and append it to the prompt
-    fn augment_prompt_with_schema<T>(&self, prompt: String) -> String
+    pub fn augment_prompt_with_schema<T>(&self, prompt: String) -> String
     where
         T: JsonSchema,
     {
@@ -427,56 +492,15 @@ Your response must be valid JSON that can be parsed into this structure. Include
     }
     
     /// Ask with automatic schema-aware prompt augmentation
-    #[instrument(skip(self, prompt, config), fields(prompt_len = prompt.len()))]
-    async fn ask_with_schema<T>(&self, prompt: String, config: &RetryConfig) -> Result<T, QueryResolverError>
+    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
+    async fn ask_with_schema<T>(&self, prompt: String) -> Result<T, QueryResolverError>
     where
         T: DeserializeOwned + JsonSchema + Send,
     {
         info!("Starting schema-aware query");
         let augmented_prompt = self.augment_prompt_with_schema::<T>(prompt);
         debug!(augmented_prompt_len = augmented_prompt.len(), "Generated schema-augmented prompt");
-        self.ask_with_retry(augmented_prompt, config).await
-    }
-}
-
-pub struct QueryResolver<C: LowLevelClient> {
-    client: C,
-    config: RetryConfig,
-}
-
-impl<C: LowLevelClient + Send + Sync> QueryResolver<C> {
-    pub fn new(client: C, config: RetryConfig) -> Self {
-        info!(default_max_retries = config.default_max_retries, "Creating new QueryResolver with retry config");
-        Self { client, config }
-    }
-    
-    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
-    pub async fn query<T>(&self, prompt: String) -> Result<T, QueryResolverError>
-    where
-        T: DeserializeOwned + Send,
-    {
-        info!(prompt_len = prompt.len(), "Starting query");
-        let result = self.client.ask_with_retry(prompt, &self.config).await;
-        match &result {
-            Ok(_) => info!("Query completed successfully"),
-            Err(e) => error!(error = %e, "Query failed"),
-        }
-        result
-    }
-    
-    /// Query with automatic schema-aware prompt augmentation
-    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
-    pub async fn query_with_schema<T>(&self, prompt: String) -> Result<T, QueryResolverError>
-    where
-        T: DeserializeOwned + JsonSchema + Send,
-    {
-        info!(prompt_len = prompt.len(), "Starting schema-aware query");
-        let result = self.client.ask_with_schema(prompt, &self.config).await;
-        match &result {
-            Ok(_) => info!("Schema-aware query completed successfully"),
-            Err(e) => error!(error = %e, "Schema-aware query failed"),
-        }
-        result
+        self.ask_with_retry(augmented_prompt).await
     }
 }
 
