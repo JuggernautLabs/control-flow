@@ -285,3 +285,13 @@ impl LowLevelClient for MockVoid {
         Ok("{}".to_string())
     }
 }
+
+// Note: We don't implement LowLevelClient for &dyn LowLevelClient 
+// due to Send/Sync issues. Use Box<dyn LowLevelClient + Send + Sync> instead.
+
+#[async_trait]
+impl LowLevelClient for Box<dyn LowLevelClient + Send + Sync> {
+    async fn ask_raw(&self, prompt: String) -> Result<String, AIError> {
+        self.as_ref().ask_raw(prompt).await
+    }
+}
