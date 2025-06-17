@@ -140,11 +140,11 @@ pub goal: String,
 
 // ==== IMPLEMENTATION: The Fundamental Cycle ====
 
-pub struct FundamentalCognitionMachine<C: SmartClient> {
+pub struct FundamentalCognitionMachine<C: LowLevelClient + Send + Sync> {
 resolver: QueryResolver<C>,
 }
 
-impl<C: SmartClient> FundamentalCognitionMachine<C> {
+impl<C: LowLevelClient + Send + Sync> FundamentalCognitionMachine<C> {
 #[instrument(skip(client))]
 pub fn new(client: C) -> Self {
     info!("Creating new FundamentalCognitionMachine");

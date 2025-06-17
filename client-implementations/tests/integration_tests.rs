@@ -1,8 +1,16 @@
-use client_implementations::client::{QueryResolver, RetryConfig};
-use client_implementations::claude::ClaudeClient;
+use client_implementations::client::RetryConfig;
+use client_implementations::test_utils::{create_test_resolver, create_test_resolver_with_config, should_skip_integration_tests, print_test_client_info};
 use serde::Deserialize;
 use schemars::JsonSchema;
-use std::env;
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+
+fn init_test_logging() {
+    INIT.call_once(|| {
+        print_test_client_info();
+    });
+}
 
 /// Simple test structure for basic functionality
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -48,21 +56,16 @@ pub enum Severity {
     High,
 }
 
-/// Skip integration tests if no API key is available
-fn should_skip_integration_tests() -> bool {
-    env::var("ANTHROPIC_API_KEY").is_err() && 
-    std::fs::read_to_string(".env").map_or(true, |content| !content.contains("ANTHROPIC_API_KEY"))
-}
-
 #[tokio::test]
 async fn test_basic_schema_query() {
+    init_test_logging();
+    
     if should_skip_integration_tests() {
-        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        println!("Skipping integration test - using mock client");
         return;
     }
 
-    let client = ClaudeClient::new().expect("Failed to create Claude client");
-    let resolver = QueryResolver::new(client, RetryConfig::default());
+    let resolver = create_test_resolver();
 
     let result: Result<MathResult, _> = resolver.query_with_schema(
         "Calculate 15 + 27 and tell me if the result is correct".to_string()
@@ -86,13 +89,14 @@ async fn test_basic_schema_query() {
 
 #[tokio::test]
 async fn test_complex_schema_with_enums() {
+    init_test_logging();
+    
     if should_skip_integration_tests() {
-        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        println!("Skipping integration test - using mock client");
         return;
     }
 
-    let client = ClaudeClient::new().expect("Failed to create Claude client");
-    let resolver = QueryResolver::new(client, RetryConfig::default());
+    let resolver = create_test_resolver();
 
     let code_sample = r#"
     fn unsafe_function() {
@@ -130,13 +134,14 @@ async fn test_complex_schema_with_enums() {
 
 #[tokio::test]
 async fn test_schema_constraint_validation() {
+    init_test_logging();
+    
     if should_skip_integration_tests() {
-        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        println!("Skipping integration test - using mock client");
         return;
     }
 
-    let client = ClaudeClient::new().expect("Failed to create Claude client");
-    let resolver = QueryResolver::new(client, RetryConfig::default());
+    let resolver = create_test_resolver();
 
     // Test that the AI respects schema constraints
     let result: Result<CodeAnalysis, _> = resolver.query_with_schema(
@@ -166,18 +171,18 @@ async fn test_schema_constraint_validation() {
 
 #[tokio::test]
 async fn test_retry_behavior() {
+    init_test_logging();
+    
     if should_skip_integration_tests() {
-        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        println!("Skipping integration test - using mock client");
         return;
     }
 
-    let client = ClaudeClient::new().expect("Failed to create Claude client");
-    
     // Configure more aggressive retry settings for this test
     let mut config = RetryConfig::default();
     config.max_retries.insert("json_parse_error".to_string(), 3);
     
-    let resolver = QueryResolver::new(client, config);
+    let resolver = create_test_resolver_with_config(config);
 
     // Use a prompt that might be challenging for JSON parsing
     let result: Result<MathResult, _> = resolver.query_with_schema(
@@ -203,13 +208,14 @@ async fn test_retry_behavior() {
 
 #[tokio::test] 
 async fn test_schema_generation_accuracy() {
+    init_test_logging();
+    
     if should_skip_integration_tests() {
-        println!("Skipping integration test - no ANTHROPIC_API_KEY found");
+        println!("Skipping integration test - using mock client");
         return;
     }
 
-    let client = ClaudeClient::new().expect("Failed to create Claude client");
-    let resolver = QueryResolver::new(client, RetryConfig::default());
+    let resolver = create_test_resolver();
 
     // Test that the AI follows the schema precisely by asking for a specific calculation
     let result: Result<MathResult, _> = resolver.query_with_schema(

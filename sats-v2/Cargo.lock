@@ -307,6 +307,7 @@ name = "client-implementations"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "clap",
  "dotenvy",
  "regex",
  "reqwest",
