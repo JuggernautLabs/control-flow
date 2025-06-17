@@ -313,17 +313,17 @@ Your response must be valid JSON that can be parsed into this structure. Include
 // Request sent to AI with rich schema
 let raw_response = client.ask_raw(augmented_prompt).await?;
 
-// Multi-stage JSON extraction
-let processed = client.process_response(raw_response, processing_time);
+// Multi-stage JSON extraction using json_utils module
+let json_content = json_utils::find_json(&raw_response);
 
 // 1. Try markdown code block extraction
-if let Some(json) = extract_json_from_markdown(&raw_response) {
+if let Some(json) = json_utils::extract_json_from_markdown(&raw_response) {
     // Found: ```json { ... } ```
     return Ok(json);
 }
 
 // 2. Try advanced JSON object detection
-if let Some(json) = extract_json_advanced(&raw_response) {
+if let Some(json) = json_utils::extract_json_advanced(&raw_response) {
     // Found complete JSON object by brace matching
     return Ok(json);
 }
@@ -563,7 +563,7 @@ let resolver = QueryResolver::new(client, retry_config);
 let response = resolver.query_with_schema::<AnalysisResult>(prompt).await?;
 
 // Access raw response details if needed
-let client_response = client.process_response(raw_response, processing_time);
+let client_response = json_utils::process_response(raw_response, processing_time);
 println!("Extraction method: {}", client_response.extraction_method);
 println!("Processing time: {}ms", client_response.processing_time_ms);
 ```
