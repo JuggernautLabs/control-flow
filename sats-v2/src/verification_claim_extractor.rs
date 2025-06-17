@@ -104,8 +104,7 @@ pub struct ClaudeVerificationExtractor {
 
 impl ClaudeVerificationExtractor {
     pub fn new(api_key: String) -> Self {
-        let client = ClaudeClient::new(api_key)
-            .with_caching(true); // Enable caching for claim extraction
+        let client = ClaudeClient::new().unwrap();
         let config = RetryConfig::default();
         let query_resolver = QueryResolver::new(client, config);
         
