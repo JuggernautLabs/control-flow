@@ -16,6 +16,8 @@ pub enum AIError {
     Claude(#[from] ClaudeError),
     #[error("OpenAI API error: {0}")]
     OpenAI(#[from] OpenAIError),
+    #[error("DeepSeek API error: {0}")]
+    DeepSeek(#[from] DeepSeekError),
 }
 
 #[derive(Error, Debug)]
@@ -32,6 +34,18 @@ pub enum ClaudeError {
 
 #[derive(Error, Debug)]
 pub enum OpenAIError {
+    #[error("HTTP error: {0}")]
+    Http(String),
+    #[error("API error: {0}")]
+    Api(String),
+    #[error("Rate limit exceeded")]
+    RateLimit,
+    #[error("Authentication failed")]
+    Authentication,
+}
+
+#[derive(Error, Debug)]
+pub enum DeepSeekError {
     #[error("HTTP error: {0}")]
     Http(String),
     #[error("API error: {0}")]
