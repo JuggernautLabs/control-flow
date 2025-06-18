@@ -81,7 +81,10 @@ struct SemanticCorrespondence {
 use client_implementations::claude::ClaudeClient;
 use client_implementations::client::{FlexibleClient, QueryResolver, RetryConfig};
 
-async fn build_todo_app_v1(client: FlexibleClient, description: &str) -> Result<VerifiedApp, BuildError> {
+async fn build_todo_app_v1(
+    client: FlexibleClient,
+    description: &str,
+) -> Result<VerifiedApp, BuildError> {
     let resolver = QueryResolver::new(client, RetryConfig::default());
 
     println!("🎯 Goal: {}", description);
@@ -205,20 +208,23 @@ enum BuildError {
 #[tokio::main]
 async fn main() -> Result<(), BuildError> {
     // Start with the simplest possible case
-       let result = build_todo_app_v1(FlexibleClient::deepseek(), "Build a simple command-line todo app").await?;
+    let result = build_todo_app_v1(
+        FlexibleClient::deepseek(),
+        "Build a simple command-line todo app",
+    )
+    .await?;
 
-       println!("\n✅ App built successfully!");
-       println!("Usage: {}", result.application.usage_instructions);
+    println!("\n✅ App built successfully!");
+    println!("Usage: {}", result.application.usage_instructions);
 
-       // Write the files to disk so we can actually test them
-       std::fs::write("todo_app.py", &result.application.code)?;
-       std::fs::write("test_todo_app.py", &result.application.tests)?;
+    // Write the files to disk so we can actually test them
+    std::fs::write("todo_app.py", &result.application.code)?;
+    std::fs::write("test_todo_app.py", &result.application.tests)?;
 
     println!("\nFiles written: todo_app.py, test_todo_app.py");
 
     // Step 4: Actually run the tests
     println!("\n🧪 Running tests...");
-
 
     let test_output = std::process::Command::new("pytest")
         .arg("test_todo_app.py")
@@ -239,25 +245,39 @@ async fn main() -> Result<(), BuildError> {
         println!("❌ Tests failed!");
     }
 
-   
     // Step 6: Summarize what we learned
-       println!("\n📊 Summary:");
-       println!("  Requirements confidence: {:.2}", result.requirements.completeness_confidence);
-       println!("  Implementation confidence: {:.2}", result.application.implementation_confidence);
-       println!("  Correspondence score: {:.2}", result.correspondence.correspondence_score);
-       println!("  Tests passed: {}", test_output.status.success());
+    println!("\n📊 Summary:");
+    println!(
+        "  Requirements confidence: {:.2}",
+        result.requirements.completeness_confidence
+    );
+    println!(
+        "  Implementation confidence: {:.2}",
+        result.application.implementation_confidence
+    );
+    println!(
+        "  Correspondence score: {:.2}",
+        result.correspondence.correspondence_score
+    );
+    println!("  Tests passed: {}", test_output.status.success());
 
-       // Step 7: Reality check
-       let actual_success = test_output.status.success();
-       let predicted_success = result.correspondence.correspondence_score > 0.8;
+    // Step 7: Reality check
+    let actual_success = test_output.status.success();
+    let predicted_success = result.correspondence.correspondence_score > 0.8;
 
-       println!("  AI predicted success: {}", predicted_success);
-       println!("  Actual success: {}", actual_success);
-       println!("  Prediction accuracy: {}", predicted_success == actual_success);
+    println!("  AI predicted success: {}", predicted_success);
+    println!("  Actual success: {}", actual_success);
+    println!(
+        "  Prediction accuracy: {}",
+        predicted_success == actual_success
+    );
 
-       if !result.correspondence.identified_gaps.is_empty() {
-           println!("  Identified gaps: {:?}", result.correspondence.identified_gaps);
-       }
+    if !result.correspondence.identified_gaps.is_empty() {
+        println!(
+            "  Identified gaps: {:?}",
+            result.correspondence.identified_gaps
+        );
+    }
 
     Ok(())
 }
