@@ -79,10 +79,9 @@ struct SemanticCorrespondence {
 }
 
 use client_implementations::claude::ClaudeClient;
-use client_implementations::client::{QueryResolver, RetryConfig};
+use client_implementations::client::{FlexibleClient, QueryResolver, RetryConfig};
 
-async fn build_todo_app_v1(description: &str) -> Result<VerifiedApp, BuildError> {
-    let client = DeepSeekClient::new()?;
+async fn build_todo_app_v1(client: FlexibleClient, description: &str) -> Result<VerifiedApp, BuildError> {
     let resolver = QueryResolver::new(client, RetryConfig::default());
 
     println!("🎯 Goal: {}", description);
@@ -206,7 +205,7 @@ enum BuildError {
 #[tokio::main]
 async fn main() -> Result<(), BuildError> {
     // Start with the simplest possible case
-       let result = build_todo_app_v1("Build a simple command-line todo app").await?;
+       let result = build_todo_app_v1(FlexibleClient::deepseek(), "Build a simple command-line todo app").await?;
 
        println!("\n✅ App built successfully!");
        println!("Usage: {}", result.application.usage_instructions);
