@@ -1,3 +1,4 @@
+use client_implementations::deepseek::DeepSeekClient;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +82,7 @@ use client_implementations::claude::ClaudeClient;
 use client_implementations::client::{QueryResolver, RetryConfig};
 
 async fn build_todo_app_v1(description: &str) -> Result<VerifiedApp, BuildError> {
-    let client = ClaudeClient::new()?;
+    let client = DeepSeekClient::new()?;
     let resolver = QueryResolver::new(client, RetryConfig::default());
 
     println!("🎯 Goal: {}", description);
@@ -190,7 +191,7 @@ enum BuildError {
     QueryError(#[from] client_implementations::error::QueryResolverError),
 
     #[error("claude client error: {0}")]
-    ClaudeError(#[from] client_implementations::error::ClaudeError),
+    ClaudeError(#[from] client_implementations::error::AIError),
 
     #[error("Verification failed: {0}")]
     VerificationFailed(String),
