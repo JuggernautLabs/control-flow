@@ -70,30 +70,30 @@ pub fn create_default_flexible_client() -> FlexibleClient {
     create_flexible_client(get_client_type())
 }
 
-/// Create a new owned instance of Box<dyn LowLevelClient + Send + Sync> based on client type
-pub fn create_boxed_client(client_type: ClientType) -> Box<dyn LowLevelClient + Send + Sync> {
+/// Create a new owned instance of Box<dyn LowLevelClient> based on client type
+/// Note: Removed Send + Sync bounds to match the trait definition
+pub fn create_boxed_client(client_type: ClientType) -> Box<dyn LowLevelClient> {
     create_flexible_client(client_type).into_inner()
 }
 
 /// Create a new owned instance using the configured client type
-pub fn create_default_boxed_client() -> Box<dyn LowLevelClient + Send + Sync> {
+pub fn create_default_boxed_client() -> Box<dyn LowLevelClient> {
     create_default_flexible_client().into_inner()
 }
 
-/// Create a QueryResolver with the configured test client
-/// Note: We create a new owned client instance to avoid lifetime issues
-pub fn create_test_resolver() -> QueryResolver<Box<dyn LowLevelClient + Send + Sync>> {
+/// Create a QueryResolver with the configured test client using Box<dyn LowLevelClient>
+pub fn create_test_resolver() -> QueryResolver<Box<dyn LowLevelClient>> {
     let client = create_default_boxed_client();
     QueryResolver::new(client, RetryConfig::default())
 }
 
-/// Create a QueryResolver with custom retry configuration
-pub fn create_test_resolver_with_config(config: RetryConfig) -> QueryResolver<Box<dyn LowLevelClient + Send + Sync>> {
+/// Create a QueryResolver with custom retry configuration using Box<dyn LowLevelClient>
+pub fn create_test_resolver_with_config(config: RetryConfig) -> QueryResolver<Box<dyn LowLevelClient>> {
     let client = create_default_boxed_client();
     QueryResolver::new(client, config)
 }
 
-/// Create a QueryResolver using FlexibleClient directly
+/// Create a QueryResolver using FlexibleClient directly (recommended approach)
 pub fn create_flexible_test_resolver() -> QueryResolver<FlexibleClient> {
     let client = create_default_flexible_client();
     QueryResolver::new(client, RetryConfig::default())
@@ -103,6 +103,24 @@ pub fn create_flexible_test_resolver() -> QueryResolver<FlexibleClient> {
 pub fn create_flexible_test_resolver_with_config(config: RetryConfig) -> QueryResolver<FlexibleClient> {
     let client = create_default_flexible_client();
     QueryResolver::new(client, config)
+}
+
+/// Create a concrete client instance for cases where you need a specific type
+pub fn create_concrete_client(client_type: ClientType) -> Box<dyn LowLevelClient> {
+    use crate::claude::ClaudeClient;
+    use crate::deepseek::DeepSeekClient;
+    use crate::client::MockVoid;
+    
+    match client_type {
+        ClientType::Claude => Box::new(ClaudeClient::default()),
+        ClientType::DeepSeek => Box::new(DeepSeekClient::default()),
+        ClientType::Mock => Box::new(MockVoid::default()),
+    }
+}
+
+/// Create a concrete client using the default client type
+pub fn create_default_concrete_client() -> Box<dyn LowLevelClient> {
+    create_concrete_client(get_client_type())
 }
 
 /// Check if we should skip integration tests (i.e., we're using MockVoid)
@@ -138,4 +156,70 @@ pub fn print_test_client_info() {
     
     println!("   Override with: TEST_CLIENT=claude|deepseek|mock");
     println!();
+}
+
+/// Utility functions for testing different resolver patterns
+pub mod patterns {
+    use super::*;
+    
+    /// Pattern 1: Using FlexibleClient (recommended for most cases)
+    pub fn pattern_flexible() -> QueryResolver<FlexibleClient> {
+        create_flexible_test_resolver()
+    }
+    
+    /// Pattern 2: Using Box<dyn LowLevelClient> (for dynamic dispatch)
+    pub fn pattern_boxed() -> QueryResolver<Box<dyn LowLevelClient>> {
+        create_test_resolver()
+    }
+    
+    /// Pattern 3: Using concrete types (best performance, but less flexible)
+    pub fn pattern_concrete_claude() -> QueryResolver<crate::claude::ClaudeClient> {
+        use crate::claude::ClaudeClient;
+        QueryResolver::new(ClaudeClient::default(), RetryConfig::default())
+    }
+    
+    /// Pattern 4: Using concrete types for DeepSeek
+    pub fn pattern_concrete_deepseek() -> QueryResolver<crate::deepseek::DeepSeekClient> {
+        use crate::deepseek::DeepSeekClient;
+        QueryResolver::new(DeepSeekClient::default(), RetryConfig::default())
+    }
+    
+    /// Pattern 5: Using mock for testing
+    pub fn pattern_mock() -> QueryResolver<crate::client::MockVoid> {
+        use crate::client::MockVoid;
+        QueryResolver::new(MockVoid::default(), RetryConfig::default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_client_type_parsing() {
+        assert!(matches!(ClientType::from_str("claude"), Ok(ClientType::Claude)));
+        assert!(matches!(ClientType::from_str("CLAUDE"), Ok(ClientType::Claude)));
+        assert!(matches!(ClientType::from_str("deepseek"), Ok(ClientType::DeepSeek)));
+        assert!(matches!(ClientType::from_str("mock"), Ok(ClientType::Mock)));
+        assert!(ClientType::from_str("invalid").is_err());
+    }
+    
+    #[test]
+    fn test_resolver_creation() {
+        // These should all compile and create valid resolvers
+        let _flexible = create_flexible_test_resolver();
+        let _boxed = create_test_resolver();
+        let _concrete = create_default_concrete_client();
+        
+        // Test different patterns
+        let _pattern1 = patterns::pattern_flexible();
+        let _pattern2 = patterns::pattern_boxed();
+        let _pattern5 = patterns::pattern_mock();
+    }
+    
+    #[test]
+    fn test_should_skip_integration() {
+        // This test depends on environment setup but should not panic
+        let _should_skip = should_skip_integration_tests();
+    }
 }
