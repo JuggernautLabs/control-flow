@@ -1,4 +1,4 @@
-use crate::client::LowLevelClient;
+use crate::client::{LowLevelClient};
 use crate::error::{AIError, ClaudeError};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -56,27 +56,39 @@ pub struct ClaudeClient {
     api_key: String,
     client: Client,
     model: String,
-    enable_caching: bool,
+}
+
+impl Default for ClaudeClient {
+    fn default() -> Self {
+        let api_key = env::var("ANTHROPIC_API_KEY")
+            .expect("ANTHROPIC_API_KEY environment variable must be set");
+            
+        info!(model = "claude-3-5-sonnet-20241022", "Creating new Claude client with caching support");
+        Self {
+            api_key,
+            client: Client::new(),
+            model: "claude-3-5-sonnet-20241022".to_string(),
+        }
+    }
 }
 
 impl ClaudeClient {
-    /// Create a new Claude client by reading ANTHROPIC_API_KEY from environment/.env
-    pub fn new() -> Result<Self, ClaudeError> {
-        // Try to load .env file (silently fail if not found)
-        let _ = dotenvy::dotenv();
-        
-        let api_key = env::var("ANTHROPIC_API_KEY")
-            .map_err(|_| ClaudeError::Authentication)?;
+
+        /// Create a new DeepSeek client by reading DEEPSEEK_API_KEY from environment/.env
+        pub fn new() -> Result<Self, AIError> {
+            // Try to load .env file (silently fail if not found)
+            let _ = dotenvy::dotenv();
             
-        info!(model = "claude-3-5-sonnet-20241022", "Creating new Claude client with caching support");
-        Ok(Self {
-            api_key,
-            client: Client::new(),
-            model: "claude-3-5-sonnet-20241022".to_string(), // Use Sonnet for better caching
-            enable_caching: true,
-        })
-    }
-    
+            let api_key = env::var("ANTHROPIC_API_KEY")
+                .map_err(|_| ClaudeError::Authentication)?;
+                
+            info!(model = "deepseek-chat", "Creating new DeepSeek client");
+            Ok(Self {
+                api_key,
+                client: Client::new(),
+                model: "deepseek-chat".to_string(),
+            })
+        }
     /// Create a new Claude client with an explicit API key
     pub fn with_api_key(api_key: String) -> Self {
         info!(model = "claude-3-5-sonnet-20241022", "Creating new Claude client with explicit API key");
@@ -84,7 +96,6 @@ impl ClaudeClient {
             api_key,
             client: Client::new(),
             model: "claude-3-5-sonnet-20241022".to_string(), // Use Sonnet for better caching
-            enable_caching: true,
         }
     }
     
@@ -93,23 +104,17 @@ impl ClaudeClient {
         self.model = model;
         self
     }
-    
-    pub fn with_caching(mut self, enable: bool) -> Self {
-        info!(enable_caching = enable, "Setting cache control");
-        self.enable_caching = enable;
-        self
-    }
-    
+
    
 }
 
 #[async_trait]
 impl LowLevelClient for ClaudeClient {
-    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len(), model = %self.model, caching_enabled = %self.enable_caching))]
+    #[instrument(skip(self, prompt), fields(prompt_len = prompt.len(), model = %self.model))]
     async fn ask_raw(&self, prompt: String) -> Result<String, AIError> {
-        debug!(model = %self.model, prompt_len = prompt.len(), caching_enabled = %self.enable_caching, "Preparing Claude API request");
+        debug!(model = %self.model, prompt_len = prompt.len(), "Preparing Claude API request");
         
-        let content = if self.enable_caching && prompt.len() > 3000 {
+        let content = if  prompt.len() > 3000 {
             // Split prompt for optimal caching
             
             ClaudeMessageContent::Structured(vec![
@@ -198,4 +203,8 @@ impl LowLevelClient for ClaudeClient {
         
         result
     }
+    fn clone_box(&self) -> Box<dyn LowLevelClient>{
+        Box::new(self.clone())
+    }
+
 }
