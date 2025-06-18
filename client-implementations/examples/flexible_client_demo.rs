@@ -1,4 +1,4 @@
-use client_implementations::client::{FlexibleClient, QueryResolver, RetryConfig};
+use client_implementations::client::{FlexibleClient, LowLevelClient, QueryResolver, RetryConfig};
 use serde::{Deserialize};
 use schemars::JsonSchema;
 
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Extract boxed clients for use with other systems
     println!("\n3. Extract boxed clients:");
-    let _boxed_client = cloned_mock.clone_inner();
+    let _boxed_client = cloned_mock.clone_box();
     println!("   ✅ Extracted boxed client from FlexibleClient");
     
     // Use with QueryResolver

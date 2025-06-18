@@ -30,13 +30,11 @@ impl Default for RetryConfig {
     }
 }
 
-
-
 /// Low-level client trait that only requires implementing ask_raw.
 /// This trait can be used as dyn LowLevelClient for dynamic dispatch.
 /// JSON processing is handled by utility functions with a convenience method.
 #[async_trait]
-pub trait LowLevelClient: Clone {
+pub trait LowLevelClient: Send + Sync {
     /// The only method that implementations must provide
     async fn ask_raw(&self, prompt: String) -> Result<String, AIError>;
     
@@ -45,6 +43,25 @@ pub trait LowLevelClient: Clone {
         let raw_response = self.ask_raw(prompt).await?;
         Ok(json_utils::find_json(&raw_response))
     }
+    
+    /// Clone this client into a boxed trait object
+    fn clone_box(&self) -> Box<dyn LowLevelClient>;
+}
+
+// Implement Clone for Box<dyn LowLevelClient>
+impl Clone for Box<dyn LowLevelClient> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
+/// Macro to reduce boilerplate for implementing clone_box
+macro_rules! impl_clone_box {
+    () => {
+        fn clone_box(&self) -> Box<dyn LowLevelClient> {
+            Box::new(self.clone())
+        }
+    };
 }
 
 /// Query resolver that wraps a LowLevelClient and provides all generic methods.
@@ -55,7 +72,7 @@ pub struct QueryResolver<C: LowLevelClient> {
     config: RetryConfig,
 }
 
-impl<C: LowLevelClient + Send + Sync> QueryResolver<C> {
+impl<C: LowLevelClient> QueryResolver<C> {
     pub fn new(client: C, config: RetryConfig) -> Self {
         info!(default_max_retries = config.default_max_retries, "Creating new QueryResolver with retry config");
         Self { client, config }
@@ -76,7 +93,6 @@ impl<C: LowLevelClient + Send + Sync> QueryResolver<C> {
         self.config = config;
         self
     }
-    
     
     /// Query with retry logic and automatic JSON parsing
     #[instrument(skip(self, prompt), fields(prompt_len = prompt.len()))]
@@ -281,29 +297,30 @@ Your response must be valid JSON that can be parsed into this structure. Include
 #[derive(Debug, Clone, Default)]
 pub struct MockVoid;
 
-
 #[async_trait]
 impl LowLevelClient for MockVoid {
     async fn ask_raw(&self, _prompt: String) -> Result<String, AIError> {
         Ok("{}".to_string())
     }
-
+    
+    impl_clone_box!();
 }
 
-// Note: We don't implement LowLevelClient for &dyn LowLevelClient 
-// due to Send/Sync issues. Use Box<dyn LowLevelClient + Send + Sync> instead.
-
+// Implement LowLevelClient for Box<dyn LowLevelClient>
 #[async_trait]
-impl LowLevelClient for Box<dyn LowLevelClient + Send + Sync> {
+impl LowLevelClient for Box<dyn LowLevelClient> {
     async fn ask_raw(&self, prompt: String) -> Result<String, AIError> {
         self.as_ref().ask_raw(prompt).await
     }
-
+    
+    fn clone_box(&self) -> Box<dyn LowLevelClient> {
+        self.as_ref().clone_box()
+    }
 }
 
 /// Flexible client that wraps any LowLevelClient and provides factory functions
 pub struct FlexibleClient {
-    inner: Box<dyn LowLevelClient + Send + Sync>,
+    inner: Box<dyn LowLevelClient>,
 }
 
 impl std::fmt::Debug for FlexibleClient {
@@ -316,7 +333,7 @@ impl std::fmt::Debug for FlexibleClient {
 
 impl FlexibleClient {
     /// Create a new FlexibleClient wrapping the given client
-    pub fn new(client: Box<dyn LowLevelClient + Send + Sync>) -> Self {
+    pub fn new(client: Box<dyn LowLevelClient>) -> Self {
         Self { inner: client }
     }
     
@@ -338,24 +355,19 @@ impl FlexibleClient {
     }
     
     /// Get a reference to the inner client
-    pub fn inner(&self) -> &Box<dyn LowLevelClient + Send + Sync> {
+    pub fn inner(&self) -> &Box<dyn LowLevelClient> {
         &self.inner
     }
     
-    /// Clone the inner client as a new Box
-    pub fn clone_inner(&self) -> Box<dyn LowLevelClient + Send + Sync> {
-        Box::new(self.inner.clone())
-    }
-    
     /// Convert into the inner boxed client
-    pub fn into_inner(self) -> Box<dyn LowLevelClient + Send + Sync> {
+    pub fn into_inner(self) -> Box<dyn LowLevelClient> {
         self.inner
     }
 }
 
 impl Clone for FlexibleClient {
     fn clone(&self) -> Self {
-        Self::new(self.clone_inner())
+        Self::new(self.inner.clone_box())
     }
 }
 
@@ -365,9 +377,7 @@ impl LowLevelClient for FlexibleClient {
         self.inner.ask_raw(prompt).await
     }
     
-    fn clone_box(&self) -> Box<dyn LowLevelClient + Send + Sync> {
-        Box::new(self.clone())
-    }
+    impl_clone_box!();
 }
 
 /// Factory functions for creating boxed client instances
@@ -384,9 +394,9 @@ pub mod factory {
         Mock,
     }
     
-    /// Create a new owned instance of Box<dyn LowLevelClient + Send + Sync>
+    /// Create a new owned instance of Box<dyn LowLevelClient>
     /// This function allows you to construct boxed clients at will for testing or dynamic usage
-    pub fn create_boxed_client(client_type: ClientType) -> Box<dyn LowLevelClient + Send + Sync> {
+    pub fn create_boxed_client(client_type: ClientType) -> Box<dyn LowLevelClient> {
         match client_type {
             ClientType::Claude => Box::new(ClaudeClient::default()),
             ClientType::DeepSeek => Box::new(DeepSeekClient::default()),
@@ -395,17 +405,17 @@ pub mod factory {
     }
     
     /// Create a Claude client boxed as dyn LowLevelClient
-    pub fn create_claude_client() -> Box<dyn LowLevelClient + Send + Sync> {
+    pub fn create_claude_client() -> Box<dyn LowLevelClient> {
         create_boxed_client(ClientType::Claude)
     }
     
     /// Create a DeepSeek client boxed as dyn LowLevelClient
-    pub fn create_deepseek_client() -> Box<dyn LowLevelClient + Send + Sync> {
+    pub fn create_deepseek_client() -> Box<dyn LowLevelClient> {
         create_boxed_client(ClientType::DeepSeek)
     }
     
     /// Create a mock client boxed as dyn LowLevelClient
-    pub fn create_mock_client() -> Box<dyn LowLevelClient + Send + Sync> {
+    pub fn create_mock_client() -> Box<dyn LowLevelClient> {
         create_boxed_client(ClientType::Mock)
     }
 }
