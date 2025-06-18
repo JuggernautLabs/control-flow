@@ -44,7 +44,7 @@ pub struct DeepSeekClient {
 
 impl DeepSeekClient {
     /// Create a new DeepSeek client by reading DEEPSEEK_API_KEY from environment/.env
-    pub fn new() -> Result<Self, DeepSeekError> {
+    pub fn new() -> Result<Self, AIError> {
         // Try to load .env file (silently fail if not found)
         let _ = dotenvy::dotenv();
         
