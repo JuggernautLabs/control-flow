@@ -1,15 +1,8 @@
 [package]
-name = "cogmach"
+name = "ffww"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "cogmach-cli"
-path = "src/bin/cli.rs"
-
-[[bin]]
-name = "cogmach-experiment"
-path = "src/bin/experiment.rs"
 
 [dependencies]
 # Core dependencies
