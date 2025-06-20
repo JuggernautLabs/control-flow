@@ -1,0 +1,3 @@
+[submodule "semantic-query"]
+	path = semantic-query
+	url = git@github.com:JuggernautLabs/semantic-query.git

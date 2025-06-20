@@ -30,7 +30,7 @@ clap = { version = "4.0", features = ["derive"] }
 regex = "1.0"
 
 # Client implementations
-client-implementations = { path = "../client-implementations" }
+semantic_query = { path = "../../semantic-query" }
 
 # Schema generation
 schemars = "0.8"
