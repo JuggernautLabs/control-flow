@@ -1,0 +1,35 @@
+# Clojure
+.cpcache/
+.nrepl-port
+.lsp/
+target/
+pom.xml*
+*.jar
+*.class
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+temp_*.py
+test_*.py
+temp_*
+*.log
+
+# Dependencies
+node_modules/
+.m2/ 
