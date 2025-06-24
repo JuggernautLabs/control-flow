@@ -1,0 +1,65 @@
+{;; Datomic configuration
+ :datomic {:uri "datomic:mem://code-knowledge-graph"
+           :create-if-not-exists true}
+ 
+ ;; Embedding configuration
+ :embeddings {:model "sentence-transformers/code-search-net"
+              :dimension 768
+              :batch-size 32
+              :cache-dir "embeddings-cache/"
+              :api-endpoint "http://localhost:8000/embed"
+              :similarity-threshold 0.8}
+ 
+ ;; Tree-sitter configuration  
+ :tree-sitter {:languages {:python "tree-sitter-python.so"
+                           :javascript "tree-sitter-javascript.so"
+                           :typescript "tree-sitter-typescript.so"
+                           :java "tree-sitter-java.so"
+                           :clojure "tree-sitter-clojure.so"
+                           :rust "tree-sitter-rust.so"
+                           :go "tree-sitter-go.so"}
+               :query-dir "tree-sitter-queries/"}
+ 
+ ;; File processing configuration
+ :processing {:supported-extensions #{".py" ".js" ".ts" ".java" ".clj" ".rs" ".go"}
+              :ignore-patterns #{".git" "node_modules" "__pycache__" "target" ".venv"}
+              :max-file-size-mb 10
+              :chunk-size 1000
+              :chunk-overlap 100
+              :parallel-workers 4}
+ 
+ ;; Analysis configuration
+ :analysis {:extract-docstrings true
+           :extract-comments true
+           :analyze-imports true
+           :analyze-calls true
+           :analyze-inheritance true
+           :compute-complexity true
+           :infer-types true}
+ 
+ ;; Graph construction
+ :graph {:similarity-edges true
+         :call-frequency-threshold 1
+         :max-similarity-edges-per-node 10
+         :relationship-weights {:calls 1.0
+                               :imports 0.8
+                               :inherits 1.2
+                               :similar 0.6}}
+ 
+ ;; Incremental processing
+ :incremental {:enabled true
+               :track-file-hashes true
+               :skip-unchanged-files true
+               :update-embeddings-on-change true}
+ 
+ ;; Logging configuration
+ :logging {:level :info
+           :file "logs/ingestion.log"
+           :max-size "100MB"
+           :max-files 5}
+ 
+ ;; Performance tuning
+ :performance {:jvm-heap "4g"
+               :datomic-memory "1g"
+               :embedding-cache-size 1000
+               :batch-transaction-size 100}} 

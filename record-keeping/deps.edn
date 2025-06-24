@@ -1,0 +1,92 @@
+{:paths ["src" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.11.1"}
+        
+        ;; Datomic
+        com.datomic/datomic-free {:mvn/version "0.9.5697"}
+        
+        ;; JSON processing
+        cheshire/cheshire {:mvn/version "5.12.0"}
+        
+        ;; HTTP client for embedding APIs
+        clj-http/clj-http {:mvn/version "3.12.3"}
+        
+        ;; String utilities
+        org.clojure/data.csv {:mvn/version "1.0.1"}
+        
+        ;; File system utilities
+        me.raynes/fs {:mvn/version "1.4.6"}
+        
+        ;; Configuration
+        aero/aero {:mvn/version "1.1.6"}
+        
+        ;; Logging
+        org.clojure/tools.logging {:mvn/version "1.2.4"}
+        ch.qos.logback/logback-classic {:mvn/version "1.4.7"}
+        
+        ;; Command line parsing
+        org.clojure/tools.cli {:mvn/version "1.0.214"}
+        
+        ;; Tree-sitter bindings (example - would need actual implementation)
+        ;; tree-sitter-clj/tree-sitter-clj {:mvn/version "0.1.0"}
+        
+        ;; Machine learning / embeddings
+        ;; NOTE: For embeddings, you'd typically use:
+        ;; - Python interop with libpython-clj
+        ;; - HTTP calls to embedding APIs (OpenAI, Hugging Face)
+        ;; - Or native Java ML libraries
+        
+        ;; Vector similarity search
+        ;; tech.ml.dataset/tech.ml.dataset {:mvn/version "7.000-beta-52"}
+        
+        ;; Async processing
+        org.clojure/core.async {:mvn/version "1.6.673"}
+        
+        ;; Testing
+        org.clojure/test.check {:mvn/version "1.1.1"}}
+ 
+ :aliases
+ {:dev
+  {:extra-paths ["dev" "test"]
+   :extra-deps {org.clojure/tools.namespace {:mvn/version "1.4.4"}
+                criterium/criterium {:mvn/version "0.4.6"}}}
+  
+  :test
+  {:extra-paths ["test"]
+   :extra-deps {lambdaisland/kaocha {:mvn/version "1.87.1366"}}}
+  
+  :build
+  {:deps {io.github.clojure/tools.build {:git/tag "v0.9.4" :git/sha "76b78fe"}}
+   :ns-default build}
+  
+  :uberjar
+  {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.1.303"}}
+   :exec-fn hf.depstar/uberjar
+   :exec-args {:aot true
+               :jar "target/record-keeping.jar"
+               :main-class "record-keeping.core"
+               :sync-pom true}}
+  
+  :repl
+  {:extra-deps {nrepl/nrepl {:mvn/version "1.0.0"}
+                cider/cider-nrepl {:mvn/version "0.42.1"}}
+   :main-opts ["-m" "nrepl.cmdline" "--middleware" "[cider.nrepl/cider-middleware]"]}
+  
+  :run
+  {:main-opts ["-m" "record-keeping.core"]}
+  
+  :tree-sitter
+  {:extra-deps {;; Tree-sitter integration dependencies
+                ;; This would require building native bindings or using external process
+                }}
+  
+  :embedding
+  {:extra-deps {;; Embedding model dependencies
+                ;; Could use libpython-clj for Python models
+                ;; Or HTTP clients for API-based embeddings
+                }}
+   
+  :benchmark
+  {:extra-deps {criterium/criterium {:mvn/version "0.4.6"}}
+   :main-opts ["-m" "record-keeping.benchmark"]}}
+ 
+ :jvm-opts ["-Xmx4g" "-XX:+UseG1GC"]} 
