@@ -1,8 +1,8 @@
 (ns example-usage
   (:require [record-keeping.core :as core]
             [record-keeping.llm-extractor :as llm]
-            [record-keeping.queries :as queries]
             [record-keeping.schema :as schema]
+            [record-keeping.datomic-adapter :as db-adapter]
             [datomic.api :as d]))
 
 ;; Example: Extract knowledge graph from a single file
@@ -62,36 +62,65 @@
 ;; Example: Store in Datomic and query
 (defn datomic-storage-example
   "Example of storing extracted data in Datomic and running queries"
-  [extraction-result]
+  [extraction-result repository-path]
   (when extraction-result
-    (let [uri "datomic:mem://example-kg"
-          _ (d/create-database uri)
-          conn (d/connect uri)
-          
-          ;; Install schema
-          _ (schema/install-schema! conn)
-          
-          ;; Convert extracted data to Datomic format and store
-          ;; (This would need implementation in core.clj)
-          
+    (println "\n🗄️ Datomic storage and query example:")
+    
+    ;; Store in Datomic using the core system
+    (let [storage-result (core/store-in-datomic extraction-result repository-path {})
+          conn (core/get-connection {})
           db (d/db conn)]
       
-      (println "\n🗄️ Datomic storage example:")
-      (println "Database created and schema installed")
-      
-      ;; Example queries (would work once data is stored)
-      (comment
-        ;; Find all functions
-        (let [functions (queries/find-all-functions db)]
-          (println "Functions in database:" (count functions)))
+      (if (:success storage-result)
+        (do
+          (println "✅ Successfully stored in Datomic!")
+          (println "Repository ID:" (:repository-id storage-result))
+          (println "Entities stored:" (:entities-stored storage-result))
+          (println "Relationships stored:" (:relationships-stored storage-result))
+          
+          ;; Run example queries
+          (println "\n📊 Running example queries:")
+          
+          ;; Find all functions
+          (let [functions (d/q '[:find [(pull ?e [:code-entity/name :code-entity/file-path]) ...]
+                                 :where
+                                 [?e :code-entity/type :function]]
+                               db)]
+            (println "• Total functions in database:" (count functions))
+            (when (seq functions)
+              (println "  Sample functions:")
+              (doseq [func (take 3 functions)]
+                (println "    -" (:code-entity/name func) 
+                        "in" (:code-entity/file-path func)))))
+          
+          ;; Find all classes
+          (let [classes (d/q '[:find [(pull ?e [:code-entity/name :code-entity/file-path]) ...]
+                               :where
+                               [?e :code-entity/type :class]]
+                             db)]
+            (println "• Total classes in database:" (count classes))
+            (when (seq classes)
+              (println "  Sample classes:")
+              (doseq [cls (take 3 classes)]
+                (println "    -" (:code-entity/name cls)))))
+          
+          ;; Repository statistics
+          (let [stats (d/q '[:find (count ?e) .
+                             :where [?e :code-entity/type]]
+                           db)]
+            (println "• Total entities:" stats))
+          
+          ;; Find relationships
+          (let [relationships (d/q '[:find (count ?r) .
+                                     :where [?r :relationship/type]]
+                                   db)]
+            (println "• Total relationships:" relationships))
+          
+          storage-result)
         
-        ;; Find function calls
-        (let [calls (queries/find-function-calls db some-function-id)]
-          (println "Functions called:" (count calls)))
-        
-        ;; Repository statistics
-        (let [stats (queries/repository-statistics db nil)]
-          (println "Repository stats:" stats))))))
+        (do
+          (println "❌ Failed to store in Datomic:" (:error storage-result))
+          nil)))))
 
 ;; Sample test data for demonstration
 (def sample-python-code
@@ -137,6 +166,47 @@ class Calculator:
         ;; Clean up temp file
         (.delete temp-file)))))
 
+;; Complete pipeline demo
+(defn demo-complete-pipeline
+  "Demonstrate the complete pipeline: extraction + Datomic storage + queries"
+  [api-key]
+  (println "\n🎯 Demo: Complete Knowledge Graph Pipeline")
+  (println "=" (apply str (repeat 60 "=")))
+  
+  (let [temp-file (java.io.File/createTempFile "pipeline-demo" ".py")]
+    (try
+      ;; Write sample code to temp file
+      (spit temp-file sample-python-code)
+      (let [file-path (.getAbsolutePath temp-file)]
+        
+        (println "Step 1: Extracting entities and relationships...")
+        (let [extraction-result (extract-single-file-example file-path api-key)]
+          
+          (if extraction-result
+            (do
+              (println "\nStep 2: Storing in Datomic...")
+              (let [storage-result (datomic-storage-example extraction-result file-path)]
+                
+                (if storage-result
+                  (do
+                    (println "\n✅ Complete pipeline successful!")
+                    (println "Knowledge graph created with:")
+                    (println "  • Entities extracted and stored")
+                    (println "  • Relationships mapped and stored") 
+                    (println "  • Database queries working")
+                    storage-result)
+                  (do
+                    (println "\n❌ Pipeline failed at storage step")
+                    nil))))
+            
+            (do
+              (println "\n❌ Pipeline failed at extraction step")
+              nil))))
+      
+      (finally
+        ;; Clean up temp file
+        (.delete temp-file)))))
+
 ;; Main demo function
 (defn run-demo
   "Run a complete demonstration of the system"
@@ -149,7 +219,12 @@ class Calculator:
   
   (println "\n" (apply str (repeat 50 "-")))
   
-  ;; Demo 2: Repository extraction (if current directory has source files)
+  ;; Demo 2: Complete pipeline with Datomic
+  (demo-complete-pipeline api-key)
+  
+  (println "\n" (apply str (repeat 50 "-")))
+  
+  ;; Demo 3: Repository extraction (if current directory has source files)
   (let [current-dir (System/getProperty "user.dir")]
     (println "\n🗂️ Demo: Repository analysis of current directory")
     (extract-repository-example current-dir api-key))

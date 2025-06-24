@@ -5,6 +5,7 @@
             [cheshire.core :as json]
             [record-keeping.llm-extractor :as llm]
             [record-keeping.schema :as schema]
+            [record-keeping.datomic-adapter :as db-adapter]
             [aero.core :as aero]
             [clojure.tools.logging :as log]))
 
@@ -12,6 +13,38 @@
 (defrecord CodeEntity [id type name source-location metadata embedding])
 (defrecord Relationship [type source target metadata])
 (defrecord Repository [path language-files entities relationships])
+
+;; Load configuration
+(defn load-config
+  "Load configuration from resources/config.edn"
+  []
+  (aero/read-config (io/resource "config.edn")))
+
+;; Datomic storage functions
+(defn store-in-datomic
+  "Store extraction result in Datomic"
+  [extraction-result repo-path opts]
+  (try
+    (let [config (load-config)
+          conn (db-adapter/get-connection config)]
+      
+      ;; Install schema if needed
+      (db-adapter/install-schema! conn)
+      
+      ;; Store the extraction result
+      (let [result (db-adapter/store-extraction-result! conn extraction-result repo-path)]
+        (log/info "Successfully stored in Datomic:" result)
+        result))
+    
+    (catch Exception e
+      (log/error "Failed to store in Datomic:" (.getMessage e))
+      {:success false :error (.getMessage e)})))
+
+(defn get-connection
+  "Get Datomic connection from options"
+  [opts]
+  (let [config (load-config)]
+    (db-adapter/get-connection config)))
 
 ;; Main ingestion pipeline
 (defn ingest-repository
@@ -28,22 +61,21 @@
         _ (when-not (:success extraction-result)
             (log/error "Extraction failed with errors:" (:errors extraction-result)))
         
-        entities (when (:success extraction-result) (:entities extraction-result))
-        relationships (when (:success extraction-result) (:relationships extraction-result))
-        
-        ;; Generate embeddings for entities
-        entities-with-embeddings (when entities 
-                                  (generate-embeddings entities opts))
-        
-        ;; Construct final graph
-        graph (when entities-with-embeddings
-                (construct-graph entities-with-embeddings relationships))]
+        ;; Store in Datomic
+        storage-result (when (:success extraction-result)
+                        (store-in-datomic extraction-result repo-path opts))]
     
-    (if graph
-      (store-graph graph opts)
-      {:success false :error "Failed to extract or process repository"})))
+    (if storage-result
+      (merge extraction-result storage-result)
+      {:success false :error "Failed to extract or store repository"})))
 
 ;; File discovery
+(defn supported-file?
+  "Check if file extension is supported"
+  [file]
+  (let [ext (-> file .getName (str/split #"\.") last str/lower-case)]
+    (contains? #{"py" "js" "ts" "java" "clj" "rs" "go"} ext)))
+
 (defn discover-source-files
   "Discover all source files in the repository"
   [repo-path]
@@ -52,25 +84,19 @@
        (filter supported-file?)
        (map #(.getAbsolutePath %))))
 
-(defn supported-file?
-  "Check if file extension is supported"
-  [file]
-  (let [ext (-> file .getName (str/split #"\.") last str/lower-case)]
-    (contains? #{"py" "js" "ts" "java" "clj" "rs" "go"} ext)))
 
-;; AST parsing using tree-sitter
-(defn parse-files
-  "Parse source files into ASTs"
-  [files opts]
-  (map #(parse-file % opts) files))
-
-(defn parse-file
-  "Parse a single file using tree-sitter"
-  [file-path opts]
-  {:file-path file-path
-   :language (infer-language file-path)
-   :ast (call-tree-sitter file-path)
-   :content (slurp file-path)})
+;; Utility functions
+(defn infer-language
+  "Infer programming language from file extension"
+  [file-path]
+  (let [ext (-> file-path (str/split #"\.") last str/lower-case)]
+    (get {"py" :python
+          "js" :javascript  
+          "ts" :typescript
+          "java" :java
+          "clj" :clojure
+          "rs" :rust
+          "go" :go} ext :unknown)))
 
 (defn call-tree-sitter
   "Call tree-sitter parser (placeholder - would use JNI or external process)"
@@ -80,22 +106,21 @@
   {:type "program"
    :children []})
 
+;; AST parsing using tree-sitter
+(defn parse-file
+  "Parse a single file using tree-sitter"
+  [file-path opts]
+  {:file-path file-path
+   :language (infer-language file-path)
+   :ast (call-tree-sitter file-path)
+   :content (slurp file-path)})
+
+(defn parse-files
+  "Parse source files into ASTs"
+  [files opts]
+  (map #(parse-file % opts) files))
+
 ;; Entity extraction
-(defn extract-entities
-  "Extract code entities from parsed files"
-  [parsed-files opts]
-  (mapcat #(extract-file-entities % opts) parsed-files))
-
-(defn extract-file-entities
-  "Extract entities from a single parsed file"
-  [parsed-file opts]
-  (let [ast (:ast parsed-file)
-        file-path (:file-path parsed-file)]
-    (concat
-      (extract-functions ast file-path)
-      (extract-classes ast file-path)
-      (extract-modules ast file-path))))
-
 (defn extract-functions
   "Extract function entities from AST"
   [ast file-path]
@@ -115,15 +140,22 @@
   ;; Placeholder implementation
   [])
 
-;; Relationship extraction
-(defn extract-relationships
-  "Extract relationships between entities"
-  [entities opts]
-  (concat
-    (extract-call-relationships entities)
-    (extract-import-relationships entities)
-    (extract-inheritance-relationships entities)))
+(defn extract-file-entities
+  "Extract entities from a single parsed file"
+  [parsed-file opts]
+  (let [ast (:ast parsed-file)
+        file-path (:file-path parsed-file)]
+    (concat
+      (extract-functions ast file-path)
+      (extract-classes ast file-path)
+      (extract-modules ast file-path))))
 
+(defn extract-entities
+  "Extract code entities from parsed files"
+  [parsed-files opts]
+  (mapcat #(extract-file-entities % opts) parsed-files))
+
+;; Relationship extraction
 (defn extract-call-relationships
   "Extract function call relationships"
   [entities]
@@ -142,18 +174,26 @@
   ;; Analyze class hierarchies
   [])
 
-;; Embedding generation
-(defn generate-embeddings
-  "Generate embeddings for entities"
+(defn extract-relationships
+  "Extract relationships between entities"
   [entities opts]
-  (map #(assoc % :embedding (compute-embedding % opts)) entities))
+  (concat
+    (extract-call-relationships entities)
+    (extract-import-relationships entities)
+    (extract-inheritance-relationships entities)))
 
+;; Embedding generation
 (defn compute-embedding
   "Compute embedding for a single entity"
   [entity opts]
   ;; This would call an embedding model like CodeBERT
   ;; Placeholder: return random vector
   (vec (repeatedly 768 #(rand))))
+
+(defn generate-embeddings
+  "Generate embeddings for entities"
+  [entities opts]
+  (map #(assoc % :embedding (compute-embedding % opts)) entities))
 
 ;; Graph construction
 (defn construct-graph
@@ -165,45 +205,17 @@
               :entity-count (count entities)
               :relationship-count (count relationships)}})
 
-;; Datomic storage
-(defn store-graph
-  "Store graph in Datomic"
-  [graph opts]
-  (let [conn (get-connection opts)]
-    (store-entities conn (:entities graph))
-    (store-relationships conn (:relationships graph))
-    graph))
-
-(defn get-connection
-  "Get Datomic connection from options"
-  [opts]
-  ;; Would connect to actual Datomic instance
-  nil)
+;; Legacy compatibility functions
 
 (defn store-entities
-  "Store entities in Datomic"
+  "Store entities in Datomic (legacy compatibility)"
   [conn entities]
-  ;; Convert entities to Datomic format and transact
-  nil)
+  (db-adapter/store-entities! conn entities))
 
 (defn store-relationships  
-  "Store relationships in Datomic"
-  [conn relationships]
-  ;; Convert relationships to Datomic format and transact
-  nil)
-
-;; Utility functions
-(defn infer-language
-  "Infer programming language from file extension"
-  [file-path]
-  (let [ext (-> file-path (str/split #"\.") last str/lower-case)]
-    (get {"py" :python
-          "js" :javascript  
-          "ts" :typescript
-          "java" :java
-          "clj" :clojure
-          "rs" :rust
-          "go" :go} ext :unknown)))
+  "Store relationships in Datomic (legacy compatibility)"
+  [conn relationships entity-id-map]
+  (db-adapter/store-relationships! conn relationships entity-id-map))
 
 ;; Load configuration
 (defn load-config
